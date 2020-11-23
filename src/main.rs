@@ -1,6 +1,7 @@
 extern crate clap;
 extern crate rustfilm;
 extern crate serde_json;
+extern crate ron;
 
 use clap::{Arg, App, SubCommand};
 use rustfilm::{update, generation, settings, cell};
@@ -180,11 +181,11 @@ fn generate(grid_name: &str, settings: &mut settings::Settings, matches: &clap::
       minor_hook
     ).unwrap();
 
-  let settings_json = serde_json::to_string(&settings).expect("JSONification failed");
-  let json = serde_json::to_string(&grid).expect("JSONification failed");
+  let settings_ron = ron::to_string(&settings).expect("RONification failed");
+  let ron = ron::to_string(&grid).expect("RONification failed");
 
   let mut file = File::create(grid_name).expect("File creation failed");
-  write!(file, "{}\n{}", settings_json, json).expect("File writing failed");
+  write!(file, "{}\n{}", settings_ron, ron).expect("File writing failed");
 }
 
 fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
@@ -196,8 +197,8 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
     lines.push(line.unwrap());
   }
 
-  let settings: settings::Settings = serde_json::from_str(&lines[0][..]).expect("deJSONification failed");
-  let grid: Vec<RefCell<cell::Cell>> = serde_json::from_str(&lines[1][..]).expect("deJSONification failed");
+  let settings: settings::Settings = ron::from_str(&lines[0][..]).expect("deRONification failed");
+  let grid: Vec<generation::GridType> = ron::from_str(&lines[1][..]).expect("deRONification failed");
 
   println!("You chose simulate! {}", grid_name);
 }
