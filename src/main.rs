@@ -3,9 +3,10 @@ extern crate rustfilm;
 extern crate serde_json;
 
 use clap::{Arg, App, SubCommand};
-use rustfilm::{update, generation, settings};
+use rustfilm::{update, generation, settings, cell};
 use std::fs::File;
-use std::io::Write;
+use std::io::{Write, BufRead, BufReader};
+use std::cell::RefCell;
 
 fn main() {
   let matches = App::new("rustfilm").version("1.0")
@@ -187,6 +188,16 @@ fn generate(grid_name: &str, settings: &mut settings::Settings, matches: &clap::
 }
 
 fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
-  println!("You chose simulate! {}", grid_name);
+  let file = File::open(grid_name).expect("Failed to open file");
+  let buffered = BufReader::new(file);
+  let mut lines: Vec<String> = vec![];
 
+  for line in buffered.lines() {
+    lines.push(line.unwrap());
+  }
+
+  let settings: settings::Settings = serde_json::from_str(&lines[0][..]).expect("deJSONification failed");
+  let grid: Vec<RefCell<cell::Cell>> = serde_json::from_str(&lines[1][..]).expect("deJSONification failed");
+
+  println!("You chose simulate! {}", grid_name);
 }
