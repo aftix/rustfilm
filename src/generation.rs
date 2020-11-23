@@ -78,7 +78,6 @@ pub fn generate_offsetgrid(
         if approx_eq!(f64, mydist, big_space, ulps = 5, epsilon = 0.00005) {
           cell.neighbor_far.push(index);
         } else if approx_eq!(f64, mydist, small_space, ulps = 5, epsilon = 0.00005) {
-          println!("found close");
           cell.neighbor_close.push(index);
         }
       }

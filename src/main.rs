@@ -4,6 +4,8 @@ extern crate serde_json;
 
 use clap::{Arg, App, SubCommand};
 use rustfilm::{update, generation, settings};
+use std::fs::File;
+use std::io::Write;
 
 fn main() {
   let matches = App::new("rustfilm").version("1.0")
@@ -177,10 +179,11 @@ fn generate(grid_name: &str, settings: &mut settings::Settings, matches: &clap::
       minor_hook
     ).unwrap();
 
-  let json = serde_json::to_string(&grid).unwrap();
-  println!("{}", json);
+  let settings_json = serde_json::to_string(&settings).expect("JSONification failed");
+  let json = serde_json::to_string(&grid).expect("JSONification failed");
 
-  println!("You chose generate! {}", grid_name);
+  let mut file = File::create(grid_name).expect("File creation failed");
+  write!(file, "{}\n{}", settings_json, json).expect("File writing failed");
 }
 
 fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
