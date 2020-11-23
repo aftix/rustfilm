@@ -1,8 +1,9 @@
 extern crate clap;
 extern crate rustfilm;
+extern crate serde_json;
 
 use clap::{Arg, App, SubCommand};
-use rustfilm::{generation, settings};
+use rustfilm::{update, generation, settings};
 
 fn main() {
   let matches = App::new("rustfilm").version("1.0")
@@ -121,16 +122,16 @@ fn main() {
                   )
                   .get_matches();
 
-  let grid_name = matches.value_of("grid").unwrap_or("grid.dat");
+  let grid_name = matches.value_of("grid").unwrap_or("grid.dat").to_string();
   let mut settings = settings::Settings::new();
-  if let Some(error) = settings.args(matches) {
+  if let Some(error) = settings.args(&matches) {
     eprintln!("Error: {}", error);
     return;
   }
 
 
   if let Some(matches) = matches.subcommand_matches("generate") {
-    generate(&grid_name[..], &matches);
+    generate(&grid_name[..], &mut settings, &matches);
   } else if let Some(matches) = matches.subcommand_matches("simulate") {
     simulate(&grid_name[..], &matches);
   } else {
@@ -138,9 +139,48 @@ fn main() {
   }
 }
 
-fn generate(grid_name: &str, matches: &clap::ArgMatches) {
+fn generate(grid_name: &str, settings: &mut settings::Settings, matches: &clap::ArgMatches) {
+  let nrows = matches.value_of("nrows").unwrap_or("10").to_string();
+  let nrows = nrows.parse::<usize>();
+  if let Err(_e) = nrows {
+    eprintln!("Error parsing nrows");
+    return;
+  }
+  let nrows = nrows.unwrap();
+  if nrows <= 0 {
+    eprintln!("nrows must be positive");
+    return;
+  }
+
+  let size = matches.value_of("size").unwrap_or("0.008").to_string();
+  let size = size.parse::<f64>();
+  if let Err(_e) = size {
+    eprintln!("Error parsing size");
+    return;
+  }
+  let size = size.unwrap();
+  if size <= 0.0 {
+    eprintln!("size must be positive");
+    return;
+  }
+
+  let fixed = matches.value_of("fixed").unwrap_or("none").to_string().to_lowercase();
+  let updatefunc = update::func_enum(&fixed[..]);
+  let major_hook = update::enum_major(&updatefunc);
+  let minor_hook = update::enum_minor(&updatefunc);
+
+  let grid = generation::generate_offsetgrid(
+      settings,
+      nrows,
+      size,
+      major_hook,
+      minor_hook
+    ).unwrap();
+
+  let json = serde_json::to_string(&grid).unwrap();
+  println!("{}", json);
+
   println!("You chose generate! {}", grid_name);
-  generation::generate_offsetgrid();
 }
 
 fn simulate(grid_name: &str, matches: &clap::ArgMatches) {

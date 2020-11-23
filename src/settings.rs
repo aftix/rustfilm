@@ -1,6 +1,4 @@
 use serde::{Serialize, Deserialize};
-use clap::{App, Arg};
-use std::error::Error;
 use super::RustfilmError;
 
 #[derive(Serialize,Deserialize,Debug)]
@@ -41,7 +39,7 @@ impl Settings {
     }
   }
 
-  pub fn args(&mut self, matches: clap::ArgMatches) -> Option<RustfilmError> {
+  pub fn args(&mut self, matches: &clap::ArgMatches) -> Option<RustfilmError> {
     if let Some(spring_k) = matches.value_of("spring_k") {
       match spring_k.parse::<f64>() {
         Ok(spring_k) => self.spring_k = spring_k,

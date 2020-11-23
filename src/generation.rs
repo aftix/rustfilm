@@ -2,6 +2,7 @@ use crate::settings;
 use crate::cell;
 use crate::update;
 use std::cell::RefCell;
+use float_cmp::approx_eq;
 
 
 use super::RustfilmError;
@@ -58,22 +59,26 @@ pub fn generate_offsetgrid(
     }
 
     let big_space = iter_space;
-    let small_space = iter_space / 2.0 * 1.4142135623731; //sqrt2
+    let small_space = (iter_space / 2.0) * 1.4142135623731; //sqrt2
 
     params.spring_relax_close = small_space;
     params.spring_relax_far = big_space;
 
-    for i in &grid {
+    for (ind, i) in grid.iter().enumerate() {
       let mut cell = i.borrow_mut();
       cell.neighbor_close = vec![];
       cell.neighbor_far = vec![];
 
       for (index, j) in grid.iter().enumerate() {
+        if ind == index {
+          continue;
+        }
         let other = j.borrow();
         let mydist = cell.pos.sub(&other.pos).norm();
-        if mydist == big_space {
+        if approx_eq!(f64, mydist, big_space, ulps = 5, epsilon = 0.00005) {
           cell.neighbor_far.push(index);
-        } else if mydist == small_space {
+        } else if approx_eq!(f64, mydist, small_space, ulps = 5, epsilon = 0.00005) {
+          println!("found close");
           cell.neighbor_close.push(index);
         }
       }
