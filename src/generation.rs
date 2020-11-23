@@ -1,22 +1,10 @@
 use crate::settings;
 use crate::cell;
 use crate::update;
-use std::error::Error;
-use std::fmt;
 use std::cell::RefCell;
 
-#[derive(Debug)]
-pub struct GenerationError {
-  pub error: String
-}
 
-impl Error for GenerationError {}
-
-impl fmt::Display for GenerationError {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    f.write_str(&self.error[..])
-  }
-}
+use super::RustfilmError;
 
 pub type GridType = RefCell<cell::Cell>;
 
@@ -26,12 +14,12 @@ pub fn generate_offsetgrid(
     size: f64,
     major_hook: Option<fn(usize, usize, &mut cell::Cell) -> ()>,
     minor_hook: Option<fn(usize, usize, &mut cell::Cell) -> ()>
-  ) -> Result<Vec<GridType>, GenerationError> {
+  ) -> Result<Vec<GridType>, RustfilmError> {
     let mut grid: Vec<GridType> = vec![];
 
     let needed_space = 2.0 * size * ((2 * nrows - 1) as f64); // Amount of space needed to fit all the cells
     if needed_space > 1.0 {
-      return Err(GenerationError { error: "Space needed exceeds limits".to_string() });
+      return Err(RustfilmError { error: "Space needed exceeds limits".to_string() });
     }
 
     let taken_space = 2.0 * size * (nrows as f64); // Amount of space the cells themselves take up

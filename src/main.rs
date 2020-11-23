@@ -1,7 +1,8 @@
 extern crate clap;
 extern crate rustfilm;
+
 use clap::{Arg, App, SubCommand};
-use rustfilm::generation;
+use rustfilm::{generation, settings};
 
 fn main() {
   let matches = App::new("rustfilm").version("1.0")
@@ -121,14 +122,19 @@ fn main() {
                   .get_matches();
 
   let grid_name = matches.value_of("grid").unwrap_or("grid.dat");
-
-  println!("yay");
-  if let Some(matches) = matches.subcommand_matches("generate") {
-    generate(&grid_name[..], &matches);
+  let mut settings = settings::Settings::new();
+  if let Some(error) = settings.args(matches) {
+    eprintln!("Error: {}", error);
+    return;
   }
 
-  if let Some(matches) = matches.subcommand_matches("simulate") {
+
+  if let Some(matches) = matches.subcommand_matches("generate") {
+    generate(&grid_name[..], &matches);
+  } else if let Some(matches) = matches.subcommand_matches("simulate") {
     simulate(&grid_name[..], &matches);
+  } else {
+    eprintln!("Need to choose `generate` or `simulate`.");
   }
 }
 
