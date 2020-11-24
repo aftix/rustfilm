@@ -16,7 +16,8 @@ pub struct Settings {
   pub restraint_k: f64,
   pub repl_dist: f64,
   pub repl_min: f64,
-  pub repl_epsilon: f64
+  pub repl_epsilon: f64,
+  pub nrows: usize
 }
 
 impl Settings {
@@ -35,7 +36,8 @@ impl Settings {
       restraint_k: 10.0,
       repl_dist: 0.012,
       repl_min: 0.01,
-      repl_epsilon: 5.0
+      repl_epsilon: 5.0,
+      nrows: 10
     }
   }
 
@@ -151,6 +153,13 @@ impl Settings {
       }
       if self.repl_epsilon < 0.0 {
         return Some(RustfilmError{error: "repl_epsilon must be nonnegative".to_string()});
+      }
+    }
+
+    if let Some(nrows) = matches.value_of("nrows") {
+      match nrows.parse::<usize>() {
+        Ok(nrows) => self.nrows = nrows,
+        Err(_e) => return Some(RustfilmError{error: "nrows failed to parse".to_string()})
       }
     }
 

@@ -6,7 +6,6 @@ use clap::{Arg, App, SubCommand};
 use rustfilm::{update, generation, settings, gfx};
 use std::fs::File;
 use std::io::{Write, BufRead, BufReader};
-use std::cell::RefCell;
 
 fn main() {
   let matches = App::new("rustfilm").version("1.0")
@@ -35,7 +34,7 @@ fn main() {
                     )
                     .arg(Arg::with_name("nrows")
                       .long("nrows")
-                      .value_name("INT")
+                      .value_name("USIZE")
                       .help("Choose the number of rows")
                       .takes_value(true)
                     )
@@ -43,6 +42,78 @@ fn main() {
                       .long("size")
                       .value_name("FLOAT")
                       .help("Choose the size of the bacteria")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("spring_k")
+                      .long("spring_k")
+                      .value_name("FLOAT")
+                      .help("Spring constant")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("damping")
+                      .long("damping")
+                      .value_name("FLOAT")
+                      .help("damping constant")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("del_t")
+                      .long("del_t")
+                      .value_name("FLOAT")
+                      .help("Time to run simulation")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("sineamp")
+                      .long("sineamp")
+                      .value_name("FLOAT")
+                      .help("Amplitude of sine wave")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("sineomega")
+                      .long("sineomega")
+                      .value_name("FLOAT")
+                      .help("Omega of sine wave")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("extforce_x")
+                      .long("extforce_x")
+                      .value_name("FLOAT")
+                      .help("External force")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("lj_epsilon")
+                      .long("lj_epsilon")
+                      .value_name("FLOAT")
+                      .help("Lennard-Jones Potential Epsilon")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("lj_sigma")
+                      .long("lj_sigma")
+                      .value_name("FLOAT")
+                      .help("Lennard-Jones Potential Sigma")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("restraint_k")
+                      .long("restraint_k")
+                      .value_name("FLOAT")
+                      .help("Restraint spring constant")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("repl_dist")
+                      .long("repl_dist")
+                      .help("Repulsion distance")
+                      .value_name("FLOAT")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("repl_min")
+                      .long("repl_min")
+                      .help("Minimum repulsion distance")
+                      .value_name("FLOAT")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("repl_epsilon")
+                      .long("repl_epsilon")
+                      .value_name("FLOAT")
+                      .help("Repulsion epsilon")
                       .takes_value(true)
                     )
                   )
@@ -57,90 +128,14 @@ fn main() {
                       .takes_value(true)
                     )
                   )
-                  .arg(Arg::with_name("spring_k")
-                    .long("spring_k")
-                    .value_name("FLOAT")
-                    .help("Spring constant")
-                    .takes_value(true)
-                  )
-                  .arg(Arg::with_name("damping")
-                    .long("damping")
-                    .value_name("FLOAT")
-                    .help("damping constant")
-                    .takes_value(true)
-                  )
-                  .arg(Arg::with_name("del_t")
-                    .long("del_t")
-                    .value_name("FLOAT")
-                    .help("Time to run simulation")
-                    .takes_value(true)
-                  )
-                  .arg(Arg::with_name("sineamp")
-                    .long("sineamp")
-                    .value_name("FLOAT")
-                    .help("Amplitude of sine wave")
-                    .takes_value(true)
-                  )
-                  .arg(Arg::with_name("sineomega")
-                    .long("sineomega")
-                    .value_name("FLOAT")
-                    .help("Omega of sine wave")
-                    .takes_value(true)
-                  )
-                  .arg(Arg::with_name("extforce_x")
-                    .long("extforce_x")
-                    .value_name("FLOAT")
-                    .help("External force")
-                    .takes_value(true)
-                  )
-                  .arg(Arg::with_name("lj_epsilon")
-                    .long("lj_epsilon")
-                    .value_name("FLOAT")
-                    .help("Lennard-Jones Potential Epsilon")
-                    .takes_value(true)
-                  )
-                  .arg(Arg::with_name("lj_sigma")
-                    .long("lj_sigma")
-                    .value_name("FLOAT")
-                    .help("Lennard-Jones Potential Sigma")
-                    .takes_value(true)
-                  )
-                  .arg(Arg::with_name("restraint_k")
-                    .long("restraint_k")
-                    .value_name("FLOAT")
-                    .help("Restraint spring constant")
-                    .takes_value(true)
-                  )
-                  .arg(Arg::with_name("repl_dist")
-                    .long("repl_dist")
-                    .help("Repulsion distance")
-                    .value_name("FLOAT")
-                    .takes_value(true)
-                  )
-                  .arg(Arg::with_name("repl_min")
-                    .long("repl_min")
-                    .help("Minimum repulsion distance")
-                    .value_name("FLOAT")
-                    .takes_value(true)
-                  )
-                  .arg(Arg::with_name("repl_epsilon")
-                    .long("repl_epsilon")
-                    .value_name("FLOAT")
-                    .help("Repulsion epsilon")
-                    .takes_value(true)
-                  )
                   .get_matches();
 
   let grid_name = matches.value_of("grid").unwrap_or("grid.dat").to_string();
   let mut settings = settings::Settings::new();
-  if let Some(error) = settings.args(&matches) {
-    eprintln!("Error: {}", error);
-    return;
-  }
 
 
   if let Some(matches) = matches.subcommand_matches("generate") {
-    generate(&grid_name[..], &mut settings, &matches);
+    generate(&grid_name[..], &matches);
   } else if let Some(matches) = matches.subcommand_matches("simulate") {
     simulate(&grid_name[..], &matches);
   } else {
@@ -148,16 +143,10 @@ fn main() {
   }
 }
 
-fn generate(grid_name: &str, settings: &mut settings::Settings, matches: &clap::ArgMatches) {
-  let nrows = matches.value_of("nrows").unwrap_or("10").to_string();
-  let nrows = nrows.parse::<usize>();
-  if let Err(_e) = nrows {
-    eprintln!("Error parsing nrows");
-    return;
-  }
-  let nrows = nrows.unwrap();
-  if nrows <= 0 {
-    eprintln!("nrows must be positive");
+fn generate(grid_name: &str, matches: &clap::ArgMatches) {
+  let mut settings = settings::Settings::new();
+  if let Some(error) = settings.args(&matches) {
+    eprintln!("Error: {}", error);
     return;
   }
 
@@ -179,8 +168,7 @@ fn generate(grid_name: &str, settings: &mut settings::Settings, matches: &clap::
   let minor_hook = update::enum_minor(&updatefunc);
 
   let grid = generation::generate_offsetgrid(
-      settings,
-      nrows,
+      &mut settings,
       size,
       major_hook,
       minor_hook

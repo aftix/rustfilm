@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::{forces, cell};
+use crate::{forces, cell, settings};
 
 #[derive(Serialize, Deserialize,Debug,PartialEq,Eq)]
 pub enum UpdateFunc {
@@ -22,22 +22,22 @@ pub fn func_enum(name: &str) -> UpdateFunc {
   }
 }
 
-pub fn enum_major(e: &UpdateFunc) -> Option<fn(usize, usize, &mut cell::Cell) -> ()> {
+pub fn enum_major(e: &UpdateFunc) -> Option<fn(usize, usize, &mut cell::Cell, &settings::Settings) -> ()> {
   match e {
     UpdateFunc::None => None,
     UpdateFunc::Constrained => Some(constrained_major),
   }
 }
 
-pub fn enum_minor(e: &UpdateFunc) -> Option<fn(usize, usize, &mut cell::Cell) -> ()> {
+pub fn enum_minor(e: &UpdateFunc) -> Option<fn(usize, usize, &mut cell::Cell, &settings::Settings) -> ()> {
   match e {
     UpdateFunc::None => None,
     UpdateFunc::Constrained => None,
   }
 }
 
-pub fn constrained_major(_i: usize, j: usize, c: &mut cell::Cell) {
-  if j == 9 {
+pub fn constrained_major(_i: usize, j: usize, c: &mut cell::Cell, s: &settings::Settings) {
+  if j == s.nrows - 1 {
     c.fixed = true;
   } else if j == 0 {
     c.force = forces::ForceFunc::Constrained;
