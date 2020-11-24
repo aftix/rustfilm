@@ -46,8 +46,8 @@ pub fn generate_offsetgrid(
 
     xpos = 2.0 * size + gap_space / 2.0;
     ypos = 2.0 * size + gap_space / 2.0;
-    for i in 0..nrows {
-      for j in 0..nrows {
+    for i in 0..nrows-1 {
+      for j in 0..nrows-1 {
         grid.push(RefCell::new(cell::Cell::new(xpos, ypos, size)));
         if let Some(hook) = minor_hook {
           hook(i, j, &mut grid[i * nrows + j].borrow_mut());

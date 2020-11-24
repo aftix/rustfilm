@@ -3,6 +3,7 @@ pub mod forces;
 pub mod update;
 pub mod settings;
 pub mod generation;
+pub mod gfx;
 
 use std::fmt;
 use std::error::Error;

@@ -20,7 +20,7 @@ pub struct Cell {
   radius: f64,
   pub neighbor_close: Vec<usize>,
   pub neighbor_far: Vec<usize>,
-  fixed: bool,
+  pub fixed: bool,
   stress: Option<f64>,
   pub update: update::UpdateFunc,
   force: forces::ForceFunc,

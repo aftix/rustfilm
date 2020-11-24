@@ -3,7 +3,7 @@ extern crate rustfilm;
 extern crate ron;
 
 use clap::{Arg, App, SubCommand};
-use rustfilm::{update, generation, settings, cell};
+use rustfilm::{update, generation, settings, gfx};
 use std::fs::File;
 use std::io::{Write, BufRead, BufReader};
 use std::cell::RefCell;
@@ -50,6 +50,12 @@ fn main() {
                     .about("Simulate a grid")
                     .version("1.0")
                     .author("Wyatt Campbell <wyatt.campbell@utexas.edu>")
+                    .arg(Arg::with_name("output")
+                      .long("output")
+                      .value_name("DIR")
+                      .help("Output directory")
+                      .takes_value(true)
+                    )
                   )
                   .arg(Arg::with_name("spring_k")
                     .long("spring_k")
@@ -199,5 +205,8 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
   let settings: settings::Settings = ron::from_str(&lines[0][..]).expect("deRONification failed");
   let grid: Vec<generation::GridType> = ron::from_str(&lines[1][..]).expect("deRONification failed");
 
-  println!("You chose simulate! {}", grid_name);
+  let output = matches.value_of("output").unwrap_or("output").to_string();
+  let output = format!("{}.png", output);
+
+  gfx::plot(grid, &output[..]);
 }
