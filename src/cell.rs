@@ -17,7 +17,7 @@ pub struct Pos {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Cell {
   pub pos: Pos,
-  radius: f64,
+  pub radius: f64,
   pub neighbor_close: Vec<usize>,
   pub neighbor_far: Vec<usize>,
   pub fixed: bool,
