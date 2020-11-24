@@ -101,6 +101,58 @@ pub fn euler(
   (times, path)
 }
 
+pub fn rk(
+  grid: &Vec<generation::GridType>,
+  dt: f64,
+  dy: fn(f64, &Vec<generation::GridType>, &settings::Settings) -> Vec<f64>,
+  settings: &settings::Settings
+) -> (Vec<f64>, Vec<Vec<generation::GridType>>) {
+  let mut path: Vec<Vec<generation::GridType>> = vec![];
+  let mut times: Vec<f64> = vec![];
+  let state = grid.clone();
+
+  let mut time = 0.0;
+
+  while time < settings.del_t {
+    path.push(state.clone().to_vec());
+    times.push(time);
+
+    let k1 = dy(time, &state, &settings);
+    for (i, refcell) in state.iter().enumerate() {
+      let mut cell = refcell.borrow_mut();
+      cell.pos.x += dt * k1[i*2] / 2.0;
+      cell.pos.y += dt * k1[i*2+1] / 2.0;
+    }
+
+    let k2 = dy(time + dt/2.0, &state, &settings);
+    for (i, refcell) in state.iter().enumerate() {
+      let mut cell = refcell.borrow_mut();
+      cell.pos.x = path[path.len() - 1][i].borrow().pos.x + dt * k2[i*2] / 2.0;
+      cell.pos.y = path[path.len() - 1][i].borrow().pos.y + dt * k2[i*2+1] / 2.0;
+    }
+
+    let k3 = dy(time + dt/2.0, &state, &settings);
+    for (i, refcell) in state.iter().enumerate() {
+      let mut cell = refcell.borrow_mut();
+      cell.pos.x = path[path.len() - 1][i].borrow().pos.x + dt * k3[i*2];
+      cell.pos.y = path[path.len() - 1][i].borrow().pos.y + dt * k3[i*2+1];
+    }
+
+    let k4 = dy(time + dt, &state, &settings);
+
+    for (i, refcell) in state.iter().enumerate() {
+      let mut cell = refcell.borrow_mut();
+      cell.pos.x = path[path.len() - 1][i].borrow().pos.x + (1.0/6.0) * dt * (k1[i*2] + 2.0*k2[i*2] + 2.0*k3[i*2] + k4[i*2]);
+      cell.pos.y = path[path.len() - 1][i].borrow().pos.y + (1.0/6.0) * dt * (k1[i*2+1] + 2.0*k2[i*2+1] + 2.0*k3[i*2+1] + k4[i*2+1]);
+    }
+    time += dt;
+  }
+  path.push(state.clone().to_vec());
+  times.push(time);
+
+  (times, path)
+}
+
 pub struct StressAvg {
   pub max_compression: f64,
   pub max_tension: f64,

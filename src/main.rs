@@ -192,7 +192,7 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
   let settings: settings::Settings = ron::from_str(&lines[0][..]).expect("deRONification failed");
   let grid: Vec<generation::GridType> = ron::from_str(&lines[1][..]).expect("deRONification failed");
 
-  let (times, states) = simulation::euler(&grid, 0.01, simulation::derivs, &settings);
+  let (times, states) = simulation::rk(&grid, 0.01, simulation::derivs, &settings);
 
   let mut max_stress = 0.0;
   for (i, state) in states.iter().enumerate() {
