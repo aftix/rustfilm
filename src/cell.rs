@@ -2,16 +2,18 @@ use serde::{Serialize, Deserialize};
 use crate::forces;
 use crate::update;
 
-#[derive(Serialize, Deserialize, Debug,Clone)]
-pub struct Strain {
-  x: f64,
-  y: f64
-}
-
-#[derive(Serialize,Deserialize,Debug,Clone)]
+#[derive(Serialize,Deserialize,Debug,Clone,Copy)]
 pub struct Pos {
   pub x: f64,
   pub y: f64
+}
+
+#[derive(Serialize,Deserialize,Debug,Clone,Copy)]
+pub struct Stress {
+  pub a: f64,
+  pub b: f64,
+  pub c: f64,
+  pub d: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug,Clone)]
@@ -21,11 +23,12 @@ pub struct Cell {
   pub neighbor_close: Vec<usize>,
   pub neighbor_far: Vec<usize>,
   pub fixed: bool,
-  stress: Option<f64>,
+  pub stress: Option<f64>,
   pub update: update::UpdateFunc,
   pub force: forces::ForceFunc,
-  initial_pos: Pos,
-  strain: Option<Strain>
+  pub initial_pos: Pos,
+  pub strain: Option<Pos>,
+  pub tensor_stress: Option<Stress>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -51,7 +54,8 @@ impl Cell {
       update: update::UpdateFunc::None,
       force: forces::ForceFunc::None,
       initial_pos: Pos { x, y },
-      strain: None
+      strain: None,
+      tensor_stress: None
     }
   }
 }
