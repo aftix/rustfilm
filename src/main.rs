@@ -1,6 +1,5 @@
 extern crate clap;
 extern crate rustfilm;
-extern crate serde_json;
 extern crate ron;
 
 use clap::{Arg, App, SubCommand};
