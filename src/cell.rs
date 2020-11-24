@@ -23,7 +23,7 @@ pub struct Cell {
   pub fixed: bool,
   stress: Option<f64>,
   pub update: update::UpdateFunc,
-  force: forces::ForceFunc,
+  pub force: forces::ForceFunc,
   initial_pos: Pos,
   strain: Option<Strain>
 }

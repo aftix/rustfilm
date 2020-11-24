@@ -4,6 +4,7 @@ pub mod update;
 pub mod settings;
 pub mod generation;
 pub mod gfx;
+pub mod simulation;
 
 use std::fmt;
 use std::error::Error;
