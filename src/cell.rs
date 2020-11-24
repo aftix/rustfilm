@@ -2,19 +2,19 @@ use serde::{Serialize, Deserialize};
 use crate::forces;
 use crate::update;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug,Clone)]
 pub struct Strain {
   x: f64,
   y: f64
 }
 
-#[derive(Serialize,Deserialize,Debug)]
+#[derive(Serialize,Deserialize,Debug,Clone)]
 pub struct Pos {
   pub x: f64,
   pub y: f64
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug,Clone)]
 pub struct Cell {
   pub pos: Pos,
   pub radius: f64,

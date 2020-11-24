@@ -4,7 +4,7 @@ use crate::{cell, generation};
 
 const SIZE: u32 = 1000;
 
-pub fn plot(grid: Vec<generation::GridType>, name: &str) {
+pub fn plot(grid: &Vec<generation::GridType>, name: &str) {
   let drawing_area = BitMapBackend::new(name, (SIZE, SIZE)).into_drawing_area();
   drawing_area.fill(&WHITE).unwrap();
 
@@ -19,7 +19,7 @@ pub fn plot(grid: Vec<generation::GridType>, name: &str) {
   let mut normal_cell: Vec<(f64, f64)> = vec![];
   let mut fixed_cell: Vec<(f64, f64)> = vec![];
 
-  for refcell in &grid {
+  for refcell in grid {
     let cell = refcell.borrow();
     if cell.fixed {
       fixed_cell.push((cell.pos.x, cell.pos.y));

@@ -3,8 +3,9 @@ extern crate rustfilm;
 extern crate ron;
 
 use clap::{Arg, App, SubCommand};
-use rustfilm::{update, generation, settings, gfx};
+use rustfilm::{update, generation, settings, gfx, simulation};
 use std::fs::File;
+use std::fs::create_dir;
 use std::io::{Write, BufRead, BufReader};
 
 fn main() {
@@ -193,8 +194,13 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
   let settings: settings::Settings = ron::from_str(&lines[0][..]).expect("deRONification failed");
   let grid: Vec<generation::GridType> = ron::from_str(&lines[1][..]).expect("deRONification failed");
 
-  let output = matches.value_of("output").unwrap_or("output").to_string();
-  let output = format!("{}.png", output);
+  let states = simulation::euler(&grid, 0.001, simulation::derivs, &settings);
 
-  gfx::plot(grid, &output[..]);
+  let output = matches.value_of("output").unwrap_or("output").to_string();
+  create_dir(&output).unwrap();
+
+  for (i, state) in states.iter().enumerate() {
+    let name = format!("{}/{:0width$}.png", output, i, width = 5);
+    gfx::plot(&state, &name);
+  }
 }

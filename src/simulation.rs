@@ -69,3 +69,31 @@ pub fn derivs(t: f64, y: &Vec<generation::GridType>, settings: &settings::Settin
 
   derivs
 }
+
+pub fn euler(
+    grid: &Vec<generation::GridType>,
+    dt: f64,
+    dy: fn(f64, &Vec<generation::GridType>, &settings::Settings) -> Vec<f64>,
+    settings: &settings::Settings
+) -> Vec<Vec<generation::GridType>> {
+  let mut path: Vec<Vec<generation::GridType>> = vec![];
+  let state = grid.clone();
+
+  let mut time = 0.0;
+
+  while time < settings.del_t {
+    path.push(state.clone().to_vec());
+    let change = dy(time, &state, &settings);
+
+    for i in 0..state.len() {
+      let mut cell = state[i].borrow_mut();
+      cell.pos.x += dt * change[i*2];
+      cell.pos.y += dt * change[i*2+1];
+    }
+
+    time += dt;
+  }
+  path.push(state);
+
+  path
+}
