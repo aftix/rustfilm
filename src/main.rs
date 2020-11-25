@@ -3,6 +3,7 @@ extern crate rustfilm;
 extern crate ron;
 extern crate num;
 extern crate rayon;
+//extern crate x264;
 
 use clap::{Arg, App, SubCommand};
 use rustfilm::{update, generation, settings, gfx, simulation, cell};
@@ -212,4 +213,13 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
     let name = format!("{}/{:0width$}.png", output, iter, width=5);
     gfx::plot(&state, &name, max_stress);
   });
+
+  /*let frames: Vec<Vec<u8>> = states.par_iter().map(|(_iter, _time, state)| {
+    gfx::plot_buf(&state, max_stress)
+  }).map(|rgb| {
+    x264::Image::rgb(gfx::Size, gfx::Size, rgb)
+  }).collect();
+
+  let video_setup = x264::Setup::preset(x264::Preset::Fast, x264::Tune::Animation, false, false);
+  let video_encoder = video_setup::new();*/
 }
