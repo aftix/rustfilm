@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use crate::{forces, cell, settings};
 
-#[derive(Serialize, Deserialize,Debug,PartialEq,Eq,Clone)]
+#[derive(Serialize, Deserialize,Debug,PartialEq,Eq,Clone,Copy)]
 pub enum UpdateFunc {
   None,
   Constrained,

@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
-use crate::{cell, generation, settings};
+use crate::{cell, settings};
 
-#[derive(Serialize, Deserialize,Debug,PartialEq,Eq, Clone)]
+#[derive(Serialize, Deserialize,Debug,PartialEq,Eq,Copy,Clone)]
 pub enum ForceFunc {
   None,
   Constrained,
@@ -11,7 +11,6 @@ pub fn force_func(e: &ForceFunc) ->
   fn(
       f64,
       &mut cell::Cell,
-      &Vec<generation::GridType>,
       usize,
       &settings::Settings
   ) -> cell::Pos
@@ -25,7 +24,6 @@ pub fn force_func(e: &ForceFunc) ->
 pub fn force_none(
     _t: f64,
     _c: &mut cell::Cell,
-    _g: &Vec<generation::GridType>,
     _i: usize,
     _s: &settings::Settings
 ) -> cell::Pos {
@@ -35,11 +33,10 @@ pub fn force_none(
 pub fn force_constrained(
   t: f64,
   c: &mut cell::Cell,
-  g: &Vec<generation::GridType>,
   i: usize,
   s: &settings::Settings
 ) -> cell::Pos {
-  let constraint = linear_restraint(t, c, g, i, s);
+  let constraint = linear_restraint(t, c, i, s);
   let mut force_x = 0.0;
 
   c.fixed = true;
@@ -58,7 +55,6 @@ pub fn force_constrained(
 pub fn linear_restraint(
   _t: f64,
   c: &mut cell::Cell,
-  _g: &Vec<generation::GridType>,
   _i: usize,
   s: &settings::Settings
 ) -> cell::Pos {
@@ -78,7 +74,6 @@ pub fn linear_restraint(
 pub fn lj_restraint(
   _t: f64,
   c: &mut cell::Cell,
-  _g: &Vec<generation::GridType>,
   _i: usize,
   s: &settings::Settings
 ) -> cell::Pos {

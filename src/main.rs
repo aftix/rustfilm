@@ -1,12 +1,15 @@
 extern crate clap;
 extern crate rustfilm;
 extern crate ron;
+extern crate num;
+extern crate rayon;
 
 use clap::{Arg, App, SubCommand};
-use rustfilm::{update, generation, settings, gfx, simulation};
+use rustfilm::{update, generation, settings, gfx, simulation, cell};
 use std::fs::File;
 use std::fs::create_dir;
 use std::io::{Write, BufRead, BufReader};
+use rayon::prelude::*;
 
 fn main() {
   let matches = App::new("rustfilm").version("1.0")
@@ -190,26 +193,23 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
   }
 
   let settings: settings::Settings = ron::from_str(&lines[0][..]).expect("deRONification failed");
-  let grid: Vec<generation::GridType> = ron::from_str(&lines[1][..]).expect("deRONification failed");
+  let grid: Vec<cell::Cell> = ron::from_str(&lines[1][..]).expect("deRONification failed");
 
-  let (times, states) = simulation::rk(&grid, 0.01, simulation::derivs, &settings);
+  let mut states = simulation::rk(&grid, 0.01, simulation::derivs, &settings);
 
-  let mut max_stress = 0.0;
-  for (i, state) in states.iter().enumerate() {
-    let avgs = simulation::get_stress(&state, times[i], &settings);
-    if avgs.max_compression > max_stress {
-      max_stress = avgs.max_compression;
-    }
-    if -avgs.max_tension > max_stress {
-      max_stress = -avgs.max_tension;
-    }
-  }
+  let max_stress = states.par_iter_mut()
+    .map(|tuple| {
+      let time = tuple.1;
+      let state = &mut tuple.2;
+      let avgs = simulation::get_stress(state, time, &settings);
+      if -avgs.max_tension > avgs.max_compression { -avgs.max_tension } else { avgs.max_compression }
+    }).max_by(|f1, f2| f1.partial_cmp(f2).unwrap()).unwrap();
 
   let output = matches.value_of("output").unwrap_or("output").to_string();
   create_dir(&output).unwrap();
 
-  for (i, state) in states.iter().enumerate() {
-    let name = format!("{}/{:0width$}.png", output, i, width = 5);
+  states.par_iter().for_each(|(iter, _time, state)| {
+    let name = format!("{}/{:0width$}.png", output, iter, width=5);
     gfx::plot(&state, &name, max_stress);
-  }
+  });
 }

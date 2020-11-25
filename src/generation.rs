@@ -1,21 +1,17 @@
 use crate::settings;
 use crate::cell;
 use crate::update;
-use std::cell::RefCell;
 use float_cmp::approx_eq;
 
-
 use super::RustfilmError;
-
-pub type GridType = RefCell<cell::Cell>;
 
 pub fn generate_offsetgrid(
     settings: &mut settings::Settings,
     size: f64,
     major_hook: Option<fn(usize, usize, &mut cell::Cell, &settings::Settings) -> ()>,
     minor_hook: Option<fn(usize, usize, &mut cell::Cell, &settings::Settings) -> ()>
-  ) -> Result<Vec<GridType>, RustfilmError> {
-    let mut grid: Vec<GridType> = vec![];
+  ) -> Result<Vec<cell::Cell>, RustfilmError> {
+    let mut grid: Vec<cell::Cell> = vec![];
 
     let needed_space = 2.0 * size * ((2 * settings.nrows - 1) as f64); // Amount of space needed to fit all the cells
     if needed_space > 1.0 {
@@ -33,9 +29,9 @@ pub fn generate_offsetgrid(
 
     for i in 0..settings.nrows {
       for j in 0..settings.nrows {
-        grid.push(RefCell::new(cell::Cell::new(xpos, ypos, size)));
+        grid.push(cell::Cell::new(xpos, ypos, size));
         if let Some(hook) = major_hook {
-          hook(i, j, &mut grid[i * settings.nrows + j].borrow_mut(), settings);
+          hook(i, j, &mut grid[i * settings.nrows + j], settings);
         }
         xpos += iter_space;
       }
@@ -47,9 +43,9 @@ pub fn generate_offsetgrid(
     ypos = 2.0 * size + gap_space / 2.0;
     for i in 0..settings.nrows-1 {
       for j in 0..settings.nrows-1 {
-        grid.push(RefCell::new(cell::Cell::new(xpos, ypos, size)));
+        grid.push(cell::Cell::new(xpos, ypos, size));
         if let Some(hook) = minor_hook {
-          hook(i, j, &mut grid[settings.nrows*settings.nrows + i * settings.nrows + j].borrow_mut(), settings);
+          hook(i, j, &mut grid[settings.nrows*settings.nrows + i * settings.nrows + j], settings);
         }
         xpos += iter_space;
       }
@@ -63,27 +59,29 @@ pub fn generate_offsetgrid(
     settings.spring_relax_close = small_space;
     settings.spring_relax_far = big_space;
 
-    for (ind, i) in grid.iter().enumerate() {
-      let mut cell = i.borrow_mut();
-      cell.neighbor_close = vec![];
-      cell.neighbor_far = vec![];
+    for ind in 0..grid.len() {
+      let cell = &grid[ind];
+      let mut neighbor_close: Vec<usize> = vec![];
+      let mut neighbor_far: Vec<usize> = vec![];
 
-      for (index, j) in grid.iter().enumerate() {
+      for (index, other) in grid.iter().enumerate() {
         if ind == index {
           continue;
         }
-        let other = j.borrow();
         let mydist = cell.pos.sub(&other.pos).norm();
         if approx_eq!(f64, mydist, big_space, ulps = 5, epsilon = 0.00005) {
-          cell.neighbor_far.push(index);
+          neighbor_far.push(index);
         } else if approx_eq!(f64, mydist, small_space, ulps = 5, epsilon = 0.00005) {
-          cell.neighbor_close.push(index);
+          neighbor_close.push(index);
         }
       }
+
+      let mut cell = &mut grid[ind];
+      cell.neighbor_close = neighbor_close.clone();
+      cell.neighbor_far = neighbor_far.clone();
     }
 
-    for i in &grid {
-      let mut cell = i.borrow_mut();
+    for mut cell in grid.iter_mut() {
       if cell.update != update::UpdateFunc::None {
         update::update(&mut cell);
       }

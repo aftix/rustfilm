@@ -1,10 +1,10 @@
 use plotters::prelude::*;
 
-use crate::generation;
+use crate::cell;
 
 const SIZE: u32 = 1000;
 
-pub fn plot(grid: &Vec<generation::GridType>, name: &str, max_stress: f64) {
+pub fn plot(grid: &Vec<cell::Cell>, name: &str, max_stress: f64) {
   let drawing_area = BitMapBackend::new(name, (SIZE, SIZE)).into_drawing_area();
   drawing_area.fill(&WHITE).unwrap();
 
@@ -19,8 +19,7 @@ pub fn plot(grid: &Vec<generation::GridType>, name: &str, max_stress: f64) {
   let mut normal_cell: Vec<(f64, f64)> = vec![];
   let mut fixed_cell: Vec<(f64, f64)> = vec![];
 
-  for refcell in grid {
-    let cell = refcell.borrow();
+  for cell in grid {
     if cell.fixed {
       fixed_cell.push((cell.pos.x, cell.pos.y));
     } else {
@@ -30,8 +29,7 @@ pub fn plot(grid: &Vec<generation::GridType>, name: &str, max_stress: f64) {
 
   chart.draw_series(
     grid.iter().map(
-      |refcell| {
-        let cell = refcell.borrow();
+      |cell| {
         let rad = (cell.radius * scale) as i32;
         if cell.fixed {
           Circle::new((cell.pos.x, cell.pos.y), rad, &GREEN)
@@ -44,8 +42,7 @@ pub fn plot(grid: &Vec<generation::GridType>, name: &str, max_stress: f64) {
 
   chart.draw_series(
     grid.iter().map(
-      |refcell| {
-        let cell = refcell.borrow();
+      |cell| {
         let rad = (cell.radius * scale) as i32 - 1;
         if let Some(stress) = cell.stress {
           let color =
