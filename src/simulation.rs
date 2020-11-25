@@ -4,14 +4,13 @@ use rayon::prelude::*;
 
 // Take in grid, return vector with x, y interlaced
 pub fn derivs(t: f64, y: &mut Vec<cell::Cell>, settings: &settings::Settings) -> Vec<f64> {
-  let mut derivs: Vec<f64> = vec![];
-
   let lj_a = settings.repl_epsilon * num::pow(settings.repl_min, 12);
   let lj_b = settings.repl_epsilon * num::pow(settings.repl_min, 6);
 
-  for i in 0..y.len() {
-    let cell_a = &y[i];
-    let mut net_force = y.par_iter().enumerate().map(|(j, cell_b)| {
+  let grid = y.clone();
+
+  let forces: Vec<(f64, f64)> = y.par_iter_mut().enumerate().map(|(i, mut cell_a)| {
+    let mut net_force = grid.par_iter().enumerate().map(|(j, cell_b)| {
         let mut net_force = (0.0, 0.0);
         let a_to_b = cell_b.pos.sub(&cell_a.pos);
         let dist = a_to_b.norm();
@@ -49,8 +48,6 @@ pub fn derivs(t: f64, y: &mut Vec<cell::Cell>, settings: &settings::Settings) ->
       (acc.0 + force_x, acc.1 + force_y)
     });
 
-    let mut cell_a = &mut y[i];
-
     if !cell_a.fixed {
       if cell_a.force != forces::ForceFunc::None {
         let force_func = forces::force_func(&cell_a.force);
@@ -65,10 +62,13 @@ pub fn derivs(t: f64, y: &mut Vec<cell::Cell>, settings: &settings::Settings) ->
     net_force.0 /= settings.damping;
     net_force.1 /= settings.damping;
 
-    derivs.push(net_force.0);
-    derivs.push(net_force.1);
-  }
+    net_force
+  }).collect();
 
+  let mut derivs: Vec<f64> = vec![];
+  for (x, y) in &forces {
+    derivs.push(*x); derivs.push(*y);
+  }
   derivs
 }
 
@@ -258,27 +258,25 @@ pub struct Stressavg {
 }
 
 pub fn get_stress(grid: &mut Vec<cell::Cell>, t: f64, settings: &settings::Settings) -> Stressavg {
-  let mut avgs = Stressavg{
-    max_compression: 0.0,
-    max_tension: 0.0,
-    avg_stress: 0.0,
-    avg_x: 0.0,
-    avg_y: 0.0
-  };
+  let grid_old = grid.clone();
 
   for cell in grid.iter_mut() {
     cell.tensor_stress = Some(cell::Stress{a: 0.0, b: 0.0, c: 0.0, d: 0.0});
     cell.stress = Some(0.0);
   }
 
-  for i in 0..grid.len() {
-    let cell_a = &grid[i];
+  let mut avgs = grid.par_iter_mut().enumerate().map(|(i, mut cell_a)| {
+    let mut avgs = Stressavg{
+      max_compression: 0.0,
+      max_tension: 0.0,
+      avg_stress: 0.0,
+      avg_x: 0.0,
+      avg_y: 0.0
+    };
 
-    let mut new_tensor_stress = cell::Stress{a: 0.0, b: 0.0, c: 0.0, d: 0.0};
-
-    for (j, cell_b) in grid.iter().enumerate() {
+    let new_tensor_stress = grid_old.par_iter().enumerate().map(|(j, cell_b)| {
       if i == j {
-        continue;
+        return cell::Stress{a: 0.0, b: 0.0, c: 0.0, d: 0.0};
       }
 
       let direc = cell_b.pos.sub(&cell_a.pos);
@@ -303,13 +301,14 @@ pub fn get_stress(grid: &mut Vec<cell::Cell>, t: f64, settings: &settings::Setti
         c: force_directed.x * direc.y, d: force_directed.y * direc.y
       };
 
-      new_tensor_stress.a += new_stress.a;
-      new_tensor_stress.b += new_stress.b;
-      new_tensor_stress.c += new_stress.c;
-      new_tensor_stress.d += new_stress.d;
-    }
+      new_stress
+    }).reduce(|| cell::Stress{a: 0.0, b: 0.0, c: 0.0, d: 0.0}, |acc, s| {
+      cell::Stress{
+        a: acc.a + s.a, b: acc.b + s.b,
+        c: acc.c + s.c, d: acc.d + s.d
+      }
+    });
 
-    let mut cell_a = &mut grid[i];
     cell_a.tensor_stress = Some(new_tensor_stress);
 
     if cell_a.force != forces::ForceFunc::None {
@@ -341,9 +340,9 @@ pub fn get_stress(grid: &mut Vec<cell::Cell>, t: f64, settings: &settings::Setti
       let new = new_a + new_b;
 
       cell_a.stress = Some(new);
-      avgs.avg_x += new_a;
-      avgs.avg_y += new_b;
-      avgs.avg_stress += new;
+      avgs.avg_x = new_a;
+      avgs.avg_y = new_b;
+      avgs.avg_stress = new;
     }
 
     if let Some(stress) = cell_a.stress {
@@ -353,12 +352,30 @@ pub fn get_stress(grid: &mut Vec<cell::Cell>, t: f64, settings: &settings::Setti
         avgs.max_tension = stress;
       }
     }
-  }
+
+    avgs
+  }).reduce(|| Stressavg {max_compression: 0.0, max_tension: 0.0, avg_stress: 0.0, avg_x: 0.0, avg_y: 0.0}, |acc, a| {
+    let mut ret = Stressavg {
+      max_compression: a.max_compression,
+      max_tension: a.max_tension,
+      avg_stress: acc.avg_stress + a.avg_stress,
+      avg_x: acc.avg_x + a.avg_x,
+      avg_y: acc.avg_y + a.avg_y
+    };
+
+    if acc.max_compression > ret.max_compression {
+      ret.max_compression = acc.max_compression;
+    }
+    if acc.max_tension < ret.max_tension { //tension is negative
+      ret.max_tension = acc.max_tension;
+    }
+
+    ret
+  });
 
   avgs.avg_stress /= grid.len() as f64;
   avgs.avg_x /= grid.len() as f64;
   avgs.avg_y /= grid.len() as f64;
-
   avgs
 }
 
@@ -370,36 +387,51 @@ pub struct Strainavg {
 }
 
 pub fn get_strain(grid: &mut Vec<cell::Cell>, _t: f64) -> Strainavg {
-  let mut avgs = Strainavg{
-    maxdisplace: 0.0,
-    maxxoff: 0.0,
-    maxyoff: 0.0,
-    avgstrain: cell::Pos{x: 0.0, y: 0.0}
-  };
+  let mut avgs = grid.par_iter_mut().map(|mut cell| {
+    let mut avgs = Strainavg{
+      maxdisplace: 0.0,
+      maxxoff: 0.0,
+      maxyoff: 0.0,
+      avgstrain: cell::Pos{x: 0.0, y: 0.0}
+    };
 
-  for i in 0..grid.len() {
-    let mut cell = &mut grid[i];
     cell.strain = Some(cell.pos.sub(&cell.initial_pos));
 
     if let Some(strain) = cell.strain {
-      if strain.x > avgs.maxxoff {
-        avgs.maxxoff = strain.x;
-      }
-      if strain.y > avgs.maxyoff {
-        avgs.maxyoff = strain.y;
-      }
-      avgs.avgstrain.x += strain.x;
-      avgs.avgstrain.y += strain.y;
-
+      avgs.maxxoff = strain.x;
+      avgs.maxyoff = strain.y;
+      avgs.avgstrain.x = strain.x;
+      avgs.avgstrain.y = strain.y;
       let norm = strain.norm();
-      if norm > avgs.maxdisplace {
-        avgs.maxdisplace = norm;
-      }
+      avgs.maxdisplace = norm;
     }
-  }
+
+    avgs
+  }).reduce(|| Strainavg{maxdisplace: 0.0, maxxoff: 0.0, maxyoff: 0.0, avgstrain: cell::Pos{x: 0.0, y: 0.0}}, |acc, s| {
+    let mut avgs = Strainavg {
+      maxdisplace: s.maxdisplace,
+      maxxoff: s.maxxoff,
+      maxyoff: s.maxyoff,
+      avgstrain: cell::Pos{
+        x: acc.avgstrain.x + s.avgstrain.x,
+        y: acc.avgstrain.y + s.avgstrain.y
+      }
+    };
+
+    if acc.maxxoff > avgs.maxxoff {
+      avgs.maxxoff = acc.maxxoff;
+    }
+    if acc.maxyoff > avgs.maxyoff {
+      avgs.maxyoff = acc.maxyoff;
+    }
+    if acc.maxdisplace > avgs.maxdisplace {
+      avgs.maxdisplace = acc.maxdisplace;
+    }
+
+    avgs
+  });
 
   avgs.avgstrain.x /= grid.len() as f64;
   avgs.avgstrain.y /= grid.len() as f64;
-
   avgs
 }

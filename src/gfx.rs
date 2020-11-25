@@ -29,7 +29,7 @@ pub fn plot(grid: &Vec<cell::Cell>, name: &str, max_stress: f64) {
 
   chart.draw_series(
     grid.iter().map(
-      |cell| {
+      |cell|
         let rad = (cell.radius * scale) as i32;
         if cell.fixed {
           Circle::new((cell.pos.x, cell.pos.y), rad, &GREEN)
