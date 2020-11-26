@@ -239,6 +239,8 @@ pub fn rk_adaptive(
 pub fn rk45(
   grid: &Vec<cell::Cell>,
   epsilon: f64,
+  dt_min: f64,
+  dt_max: f64,
   dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
   settings: &settings::Settings
 ) -> Vec<(i32, f64, Vec<cell::Cell>)> {
@@ -253,85 +255,94 @@ pub fn rk45(
   let mut dt = 0.01;
 
   // coeffecients for RK4(5)
-  let a = [0.0, 2.0/9.0, 1.0/3.0, 3.0/4.0, 1.0, 5.0/6.0];
+  let a = [0.0, 1.0/4.0, 3.0/8.0, 12.0/13.0, 1.0, 1.0/2.0];
   let b = [[0.0, 0.0, 0.0, 0.0, 0.0],
-            [2.0 / 9.0, 0.0, 0.0, 0.0, 0.0],
-            [1.0 / 12.0, 1.0 / 4.0, 0.0, 0.0, 0.0],
-            [69.0 / 128.0, -243.0/128.0, 135.0/64.0, 0.0, 0.0],
-            [-17.0 / 12.0, 27.0 / 4.0, -27.0 / 5.0, 16.0 / 15.0, 0.0],
-            [65.0 / 432.0, -5.0 / 16.0, 13.0 / 16.0, 4.0 / 27.0, 5.0/144.0]];
-  let ch = [47.0/450.0, 0.0, 12.0/25.0, 32.0/225.0, 1.0/30.0, 6.0/25.0];
-  let ct = [-1.0/150.0, 0.0, 3.0/100.0, -16.0/75.0, -1.0/20.0, 6.0/25.0];
+            [1.0 / 4.0, 0.0, 0.0, 0.0, 0.0],
+            [3.0 / 32.0, 9.0/32.0, 0.0, 0.0, 0.0],
+            [1932.0/2197.0, -7200.0/2197.0, 7296.0/2197.0, 0.0, 0.0],
+            [439.0/216.0, -8.0, 3680.0/513.0, -845.0/4104.0, 0.0],
+            [-8.0/27.0, 2.0, -3544.0/2565.0, 1859.0/4104.0, -11.0/40.0]];
+  let c = [16.0 / 135.0, 0.0, 6656.0/12825.0, 28561.0/56430.0, -9.0/50.0, 2.0/55.0];
+  let d = [25.0/216.0, 0.0, 1408.0/2565.0, 2197.0/4104.0, -1.0/5.0, 0.0];
 
   while time < settings.del_t {
     // Only push state if we actually took a step
     if last_iter != iter {
       path.push((iter, time, state.clone().to_vec()));
     }
+    last_iter = iter;
 
     let k1 = dy(time + dt*a[0], &mut state, &settings);
     let k1: Vec<f64> = k1.iter().map(|k| dt*k).collect();
 
     for (i, cell) in state.iter_mut().enumerate() {
-      cell.pos.x += b[1][0] * k1[i*2];
-      cell.pos.y += b[1][0] * k1[i*2+1];
+      cell.pos.x = path[path.len() - 1].2[i].pos.x + b[1][0] * k1[i*2];
+      cell.pos.y = path[path.len() - 1].2[i].pos.y + b[1][0] * k1[i*2+1];
     }
     let k2 = dy(time + dt*a[1], &mut state, &settings);
     let k2: Vec<f64> = k2.iter().map(|k| dt*k).collect();
-    state = path[path.len() - 1].2.clone();
 
     for (i, cell) in state.iter_mut().enumerate() {
-      cell.pos.x += b[2][0] * k1[i*2] + b[2][1] * k2[i*2];
-      cell.pos.y += b[2][0] * k1[i*2+1] + b[2][1] * k2[i*2+1];
+      cell.pos.x = path[path.len() - 1].2[i].pos.x + b[2][0] * k1[i*2] + b[2][1] * k2[i*2];
+      cell.pos.y = path[path.len() - 1].2[i].pos.y + b[2][0] * k1[i*2+1] + b[2][1] * k2[i*2+1];
     }
     let k3 = dy(time + dt*a[2], &mut state, &settings);
     let k3: Vec<f64> = k3.iter().map(|k| dt*k).collect();
-    state = path[path.len() - 1].2.clone();
 
     for (i, cell) in state.iter_mut().enumerate() {
-      cell.pos.x += b[3][0] * k1[i*2] + b[3][1] * k2[i*2] + b[3][2] * k3[i*2];
-      cell.pos.y += b[3][0] * k1[i*2+1] + b[3][1] * k2[i*2+1] + b[3][2] * k3[i*2 + 1];
+      cell.pos.x = path[path.len() - 1].2[i].pos.x + b[3][0] * k1[i*2] + b[3][1] * k2[i*2] + b[3][2] * k3[i*2];
+      cell.pos.y = path[path.len() - 1].2[i].pos.y + b[3][0] * k1[i*2+1] + b[3][1] * k2[i*2+1] + b[3][2] * k3[i*2 + 1];
     }
     let k4 = dy(time + dt*a[3], &mut state, &settings);
     let k4: Vec<f64> = k4.iter().map(|k| dt*k).collect();
-    state = path[path.len() - 1].2.clone();
 
     for (i, cell) in state.iter_mut().enumerate() {
-      cell.pos.x += b[4][0] * k1[i*2] + b[4][1] * k2[i*2] + b[4][2] * k3[i*2] + b[4][3] * k4[i*2];
-      cell.pos.y += b[4][0] * k1[i*2+1] + b[4][1] * k2[i*2+1] + b[4][2] * k3[i*2 + 1] + b[4][3]*k4[i*2+1];
+      cell.pos.x = path[path.len() - 1].2[i].pos.x + b[4][0] * k1[i*2] + b[4][1] * k2[i*2] + b[4][2] * k3[i*2] + b[4][3] * k4[i*2];
+      cell.pos.y = path[path.len() - 1].2[i].pos.y + b[4][0] * k1[i*2+1] + b[4][1] * k2[i*2+1] + b[4][2] * k3[i*2 + 1] + b[4][3]*k4[i*2+1];
     }
     let k5 = dy(time + dt*a[4], &mut state, &settings);
     let k5: Vec<f64> = k5.iter().map(|k| dt*k).collect();
-    state = path[path.len() - 1].2.clone();
 
     for (i, cell) in state.iter_mut().enumerate() {
-      cell.pos.x += b[5][0] * k1[i*2] + b[5][1] * k2[i*2] + b[5][2] * k3[i*2] + b[5][3] * k4[i*2] + b[5][4] * k5[i*2];
-      cell.pos.y += b[5][0] * k1[i*2+1] + b[5][1] * k2[i*2+1] + b[5][2] * k3[i*2 + 1] + b[5][3]*k4[i*2+1] + b[5][4] * k5[i*2];
+      cell.pos.x += path[path.len() - 1].2[i].pos.x + b[5][0] * k1[i*2] + b[5][1] * k2[i*2] + b[5][2] * k3[i*2] + b[5][3] * k4[i*2] + b[5][4] * k5[i*2];
+      cell.pos.y += path[path.len() - 1].2[i].pos.y + b[5][0] * k1[i*2+1] + b[5][1] * k2[i*2+1] + b[5][2] * k3[i*2 + 1] + b[5][3]*k4[i*2+1] + b[5][4] * k5[i*2];
     }
     let k6 = dy(time + dt*a[5], &mut state, &settings);
     let k6: Vec<f64> = k6.iter().map(|k| dt*k).collect();
-    state = path[path.len() - 1].2.clone();
 
-    for (i, cell) in state.iter_mut().enumerate() {
-      cell.pos.x += ch[0] * k1[i*2] + ch[1]*k2[i*2] + ch[2]*k3[i*2] + ch[3]*k4[i*2] + ch[4]*k5[i*2] + ch[5]*k6[i*2];
-      cell.pos.y += ch[0] * k1[i*2+1] + ch[1]*k2[i*2+1] + ch[2]*k3[i*2+1] + ch[3]*k4[i*2+1] + ch[4]*k5[i*2+1] + ch[5]*k6[i*2+1];
-    }
+    let fifth_order: Vec<f64> = k1.iter().enumerate().map(|(i, k1)| {
+      if i % 2 == 0 {
+        path[path.len() - 1].2[i/2].pos.x + c[0] * k1 + c[1] * k2[i] + c[2] * k3[i] + c[3] * k4[i] + c[4] * k5[i] + c[5]*k6[i]
+      } else {
+        path[path.len() - 1].2[i/2].pos.y + c[0] * k1 + c[1] * k2[i] + c[2] * k3[i] + c[3] * k4[i] + c[4] * k5[i] + c[5]*k6[i]
+      }
+    }).collect();
+    let fourth_order: Vec<f64> = k1.iter().enumerate().map(|(i, k1)| {
+      if i % 2 == 0 {
+        path[path.len() - 1].2[i/2].pos.x + d[0] * k1 + d[1] * k2[i] + d[2] * k3[i] + d[3] * k4[i] + d[4] * k5[i] + d[5]*k6[i]
+      } else {
+        path[path.len() - 1].2[i/2].pos.y + d[0] * k1 + d[1] * k2[i] + d[2] * k3[i] + d[3] * k4[i] + d[4] * k5[i] + d[5]*k6[i]
+      }
+    }).collect();
 
-    let mut error: Vec<f64> = vec![];
-    for i in 0..k1.len() {
-      error.push((ct[0]*k1[i] + ct[1]*k2[i] + ct[2]*k3[i] + ct[3]*k4[i] + ct[4]*k5[i] + ct[5]*k6[i]).abs());
-    }
+    state.iter_mut().enumerate().for_each(|(i, cell)| {
+      cell.pos.x = path[path.len() - 1].2[i].pos.x + d[0] * k1[i*2] + d[1] * k2[i*2] + d[2] * k3[i*2] + d[3] * k4[i*2] + d[4] * k5[i*2] + d[5]*k6[i*2];
+      cell.pos.y = path[path.len() - 1].2[i].pos.y + d[0] * k1[i*2+1] + d[1] * k2[i*2+1] + d[2] * k3[i*2+1] + d[3] * k4[i*2+1] + d[4] * k5[i*2+1] + d[5]*k6[i*2+1];
+    });
 
-    let total_error = error.iter().map(|f| f.powi(2)).sum::<f64>().sqrt();
-    let dt_new = 0.9 * dt * (epsilon / total_error).powf(0.2);
+    let error = fifth_order.iter().zip(fourth_order.iter()).map(|(five, four)| {
+      (five - four).powi(2)
+    }).sum::<f64>().sqrt();
 
-    last_iter = iter;
-    if total_error <= epsilon {
+    if error <= epsilon || dt <= dt_min {
       iter += 1;
       time += dt;
-      dt = dt_new;
-    } else {
-      dt = dt_new;
+    }
+    dt *= 0.9 * (epsilon / error).powf(0.2);
+    if dt > dt_max {
+      dt = dt_max;
+    } else if dt < dt_min {
+      dt = dt_min;
     }
   }
   path.push((iter, time, state.clone().to_vec()));
