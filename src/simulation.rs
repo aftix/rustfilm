@@ -147,6 +147,95 @@ pub fn rk(
   path
 }
 
+pub fn rk_adaptive(
+  grid: &Vec<cell::Cell>,
+  tol: f64,
+  dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
+  settings: &settings::Settings
+) -> Vec<(i32, f64, Vec<cell::Cell>)> {
+  let mut path: Vec<(i32, f64, Vec<cell::Cell>)> = vec![];
+  let mut state = grid.clone();
+
+  let mut time = 0.0;
+  let mut iter = 0;
+  let mut iter_last = -1;
+
+  let mut dt = 0.01;
+
+  while time < settings.del_t {
+    if iter_last != iter {
+      path.push((iter, time, state.clone().to_vec()));
+    }
+    iter_last = iter;
+
+    let estimate = |dt: f64, state: &mut Vec<cell::Cell>| {
+      let k1 = dy(time, state, &settings);
+      for (i, cell) in state.iter_mut().enumerate() {
+        cell.pos.x += dt * k1[i*2] / 2.0;
+        cell.pos.y += dt * k1[i*2+1] / 2.0;
+      }
+
+      let k2 = dy(time + dt/2.0, state, &settings);
+      for (i, cell) in state.iter_mut().enumerate() {
+        cell.pos.x = path[path.len() - 1].2[i].pos.x + dt * k2[i*2] / 2.0;
+        cell.pos.y = path[path.len() - 1].2[i].pos.y + dt * k2[i*2+1] / 2.0;
+      }
+
+      let k3 = dy(time + dt/2.0, state, &settings);
+      for (i, cell) in state.iter_mut().enumerate() {
+        cell.pos.x = path[path.len() - 1].2[i].pos.x + dt * k3[i*2];
+        cell.pos.y = path[path.len() - 1].2[i].pos.y + dt * k3[i*2+1];
+      }
+
+      let k4 = dy(time + dt, state, &settings);
+
+      for (i, cell) in state.iter_mut().enumerate() {
+        cell.pos.x = path[path.len() - 1].2[i].pos.x + (1.0/6.0) * dt * (k1[i*2] + 2.0*k2[i*2] + 2.0*k3[i*2] + k4[i*2]);
+        cell.pos.y = path[path.len() - 1].2[i].pos.y + (1.0/6.0) * dt * (k1[i*2+1] + 2.0*k2[i*2+1] + 2.0*k3[i*2+1] + k4[i*2+1]);
+      }
+    };
+
+    let mut full_step = path[path.len() - 1].2.clone();
+    estimate(dt, &mut full_step);
+
+    let mut half_step = path[path.len() - 1].2.clone();
+    estimate(dt * 0.5, &mut half_step);
+
+    let error = half_step.iter().zip(full_step.iter()).map(|(half, full)| {
+      let err_x = half.pos.x - full.pos.x;
+      let err_y = half.pos.y - full.pos.y;
+      err_x.powi(2) + err_y.powi(2)
+    }).sum::<f64>().sqrt();
+
+    if error > tol { // half step size if error is bad
+      dt *= 0.5;
+      continue;
+    }
+
+    // Check to see if you should double step size
+    let mut double_step = path[path.len() - 1].2.clone();
+    estimate(dt * 2.0, &mut double_step);
+
+    let error = half_step.iter().zip(double_step.iter()).map(|(half, full)| {
+      let err_x = half.pos.x - full.pos.x;
+      let err_y = half.pos.y - full.pos.y;
+      err_x.powi(2) + err_y.powi(2)
+    }).sum::<f64>().sqrt();
+
+    if error <= tol { // If double_step is good, use the double step and continue to
+      dt *= 2.0;
+      state = double_step;
+    } else {
+      state = full_step;
+    }
+
+    time += dt;
+    iter += 1;
+  }
+  path.push((iter, time, state.clone().to_vec()));
+  path
+}
+
 pub fn rk45(
   grid: &Vec<cell::Cell>,
   epsilon: f64,
