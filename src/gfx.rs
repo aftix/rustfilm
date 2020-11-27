@@ -2,7 +2,9 @@ use plotters::prelude::*;
 
 use crate::cell;
 
-const SIZE: usize = 1000;
+// must be even
+pub const SIZE: usize = 1024;
+pub const FPS: usize = 24;
 
 pub fn plot(grid: &Vec<cell::Cell>, name: &str, max_stress: f64) {
   let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();

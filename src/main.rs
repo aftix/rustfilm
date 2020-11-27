@@ -3,12 +3,10 @@ extern crate rustfilm;
 extern crate ron;
 extern crate num;
 extern crate rayon;
-//extern crate x264;
 
 use clap::{Arg, App, SubCommand};
 use rustfilm::{update, generation, settings, gfx, simulation, cell};
 use std::fs::File;
-use std::fs::create_dir;
 use std::io::{Write, BufRead, BufReader};
 use rayon::prelude::*;
 
@@ -208,20 +206,99 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
       if -avgs.max_tension > avgs.max_compression { -avgs.max_tension } else { avgs.max_compression }
     }).max_by(|f1, f2| f1.partial_cmp(f2).unwrap()).unwrap();
 
-  let output = matches.value_of("output").unwrap_or("output").to_string();
-  create_dir(&output).unwrap();
+  let output = matches.value_of("output").unwrap_or("output.ivf").to_string();
+  //create_dir(&output).unwrap();
 
-  states.par_iter().for_each(|(iter, _time, state)| {
+  /*states.par_iter().for_each(|(iter, _time, state)| {
     let name = format!("{}/{:0width$}.png", output, iter, width=5);
     gfx::plot(&state, &name, max_stress);
-  });
+  });*/
 
-  /*let frames: Vec<Vec<u8>> = states.par_iter().map(|(_iter, _time, state)| {
-    gfx::plot_buf(&state, max_stress)
-  }).map(|rgb| {
-    x264::Image::rgb(gfx::Size, gfx::Size, rgb)
+  let frames: Vec<Vec<u8>> = states.par_iter().map(|(_iter, _time, state)| {
+    to_i444(&gfx::plot_buf(&state, max_stress))
   }).collect();
+  encode(&frames, &output[..]);
+}
 
-  let video_setup = x264::Setup::preset(x264::Preset::Fast, x264::Tune::Animation, false, false);
-  let video_encoder = video_setup::new();*/
+extern crate rav1e;
+extern crate ivf;
+use rav1e::config::SpeedSettings;
+use rav1e::*;
+
+// Take interlaced RGB and translate it it 3 planes, Y U V
+fn to_i444(frame: &Vec<u8>) -> Vec<u8> {
+  let mut planes: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE*3];
+
+  for i in 0..gfx::SIZE*gfx::SIZE {
+    let r: f64 = frame[i*3] as f64;
+    let g: f64 = frame[i*3+1] as f64;
+    let b: f64 = frame[i*3+2] as f64;
+
+    let y = (0.257 * r) + (0.504 * g) + (0.098 * b) + 16.0;
+    let u = -(0.148 * r) - (0.291*g) + (0.439 * b) + 128.0;
+    let v = (0.439 * r) - (0.368 * g) - (0.071 * b) + 128.0;
+
+    let y = if y < 0.0 { 0.0 } else if y > 255.0 { 255.0 } else { y };
+    let u = if u < 0.0 { 0.0 } else if u > 255.0 { 255.0 } else { u };
+    let v = if v < 0.0 { 0.0 } else if v > 255.0 { 255.0 } else { v };
+
+    let y = y as u8;
+    let u = u as u8;
+    let v = v as u8;
+
+    planes[i] = y;
+    planes[i + gfx::SIZE*gfx::SIZE] = u;
+    planes[i + 2*gfx::SIZE*gfx::SIZE] = v;
+  }
+  planes
+}
+
+// frames in i444
+fn encode(frames: &Vec<Vec<u8>>, output: &str) {
+  let mut cfg = Config::default();
+
+  cfg.enc.width = gfx::SIZE;
+  cfg.enc.height = gfx::SIZE;
+  cfg.enc.speed_settings = SpeedSettings::from_preset(9);
+  cfg.enc.chroma_sampling = color::ChromaSampling::Cs444;
+
+  let mut ctx: Context<u8> = cfg.new_context().unwrap();
+
+  for frame in frames {
+    let mut f = ctx.new_frame();
+    f.planes[0].copy_from_raw_u8(&frame[0..gfx::SIZE*gfx::SIZE], gfx::SIZE, 1);
+    f.planes[1].copy_from_raw_u8(&frame[gfx::SIZE*gfx::SIZE..2*gfx::SIZE*gfx::SIZE], gfx::SIZE, 1);
+    f.planes[2].copy_from_raw_u8(&frame[2*gfx::SIZE*gfx::SIZE..3*gfx::SIZE*gfx::SIZE], gfx::SIZE, 1);
+
+    match ctx.send_frame(f) {
+      Ok(_) => {},
+      Err (e) => match e {
+        EncoderStatus::EnoughData => panic!("unable to append frame to internal queue"),
+        _ => panic!("Unable to send frame")
+      }
+    }
+  }
+
+  ctx.flush();
+
+  let mut file = File::create(output).expect("File creation failed");
+  ivf::write_ivf_header(&mut file, gfx::SIZE, gfx::SIZE, gfx::FPS, 1);
+
+  loop {
+    match ctx.receive_packet() {
+      Ok(pkt) => {
+        ivf::write_ivf_frame(&mut file, pkt.input_frameno, &pkt.data[..]);
+      },
+      Err(e) => match e {
+        EncoderStatus::LimitReached => {
+          break;
+        },
+        EncoderStatus::Encoded => {},
+        EncoderStatus::NeedMoreData => {
+          ctx.send_frame(None).unwrap();
+        },
+        _ => panic!("Unable to recieve packet")
+      }
+    };
+  }
 }
