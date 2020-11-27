@@ -214,8 +214,8 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
     gfx::plot(&state, &name, max_stress);
   });*/
 
-  let frames: Vec<Vec<u8>> = states.par_iter().map(|(_iter, _time, state)| {
-    to_i444(&gfx::plot_buf(&state, max_stress))
+  let frames: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> = states.par_iter().map(|(_iter, _time, state)| {
+    to_i420(&gfx::plot_buf(&state, max_stress))
   }).collect();
   encode(&frames, &output[..]);
 }
@@ -253,22 +253,82 @@ fn to_i444(frame: &Vec<u8>) -> Vec<u8> {
   planes
 }
 
-// frames in i444
-fn encode(frames: &Vec<Vec<u8>>, output: &str) {
+fn to_i420(frame: &Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+  let mut y_plane: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE];
+  let mut u_plane: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE/4];
+  let mut v_plane: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE/4];
+
+  let get_yuv = |r: f64, g: f64, b: f64| {
+    let y = (0.257 * r) + (0.504 * g) + (0.098 * b) + 16.0;
+    let u = -(0.148 * r) - (0.291*g) + (0.439 * b) + 128.0;
+    let v = (0.439 * r) - (0.368 * g) - (0.071 * b) + 128.0;
+
+    let y = if y < 0.0 { 0.0 } else if y > 255.0 { 255.0 } else { y };
+    let u = if u < 0.0 { 0.0 } else if u > 255.0 { 255.0 } else { u };
+    let v = if v < 0.0 { 0.0 } else if v > 255.0 { 255.0 } else { v };
+
+    let y = y as u8;
+    let u = u as u8;
+    let v = v as u8;
+
+    (y, u, v)
+  };
+
+  for row in 0..gfx::SIZE/2 {
+    for column in 0..gfx::SIZE/2 {
+      let r_1: f64 = frame[(2*row + 2*column*gfx::SIZE) * 3] as f64;
+      let g_1: f64 = frame[(2*row + 2*column*gfx::SIZE) * 3 + 1] as f64;
+      let b_1: f64 = frame[(2*row + 2*column*gfx::SIZE) * 3 + 2] as f64;
+
+      let r_2: f64 = frame[(2*row + 1 + 2*column*gfx::SIZE) * 3] as f64;
+      let g_2: f64 = frame[(2*row + 1 + 2*column*gfx::SIZE) * 3 + 1] as f64;
+      let b_2: f64 = frame[(2*row + 1 + 2*column*gfx::SIZE) * 3 + 2] as f64;
+
+      let r_3: f64 = frame[(2*row + (2*column + 1)*gfx::SIZE) * 3] as f64;
+      let g_3: f64 = frame[(2*row + (2*column + 1)*gfx::SIZE) * 3 + 1] as f64;
+      let b_3: f64 = frame[(2*row + (2*column + 1)*gfx::SIZE) * 3 + 2] as f64;
+
+      let r_4: f64 = frame[(2*row + 1 + (2*column + 1)*gfx::SIZE) * 3] as f64;
+      let g_4: f64 = frame[(2*row + 1 + (2*column + 1)*gfx::SIZE) * 3 + 1] as f64;
+      let b_4: f64 = frame[(2*row + 1 + (2*column + 1)*gfx::SIZE) * 3 + 2] as f64;
+
+      let yuv_1 = get_yuv(r_1, b_1, g_1);
+      let yuv_2 = get_yuv(r_2, b_2, g_2);
+      let yuv_3 = get_yuv(r_3, b_3, g_3);
+      let yuv_4 = get_yuv(r_4, b_4, g_4);
+
+      let u_sum: u16 = yuv_1.1 as u16 + yuv_2.1 as u16 + yuv_3.1 as u16 + yuv_4.1 as u16;
+      let v_sum: u16 = yuv_1.2 as u16 + yuv_2.2 as u16 + yuv_3.2 as u16 + yuv_4.2 as u16;
+
+      y_plane[2*row + 2*column*gfx::SIZE] = yuv_1.0;
+      y_plane[2*row + 1 + 2*column*gfx::SIZE] = yuv_2.0;
+      y_plane[2*row + (2*column + 1)*gfx::SIZE] = yuv_3.0;
+      y_plane[2*row + 1+ (2*column + 1)*gfx::SIZE] = yuv_4.0;
+
+      u_plane[row + column*gfx::SIZE/2] = (u_sum / 4) as u8;
+      v_plane[row + column*gfx::SIZE/2] = (v_sum / 4) as u8;
+    }
+  }
+
+  (y_plane, u_plane, v_plane)
+}
+
+// frames in i420
+fn encode(frames: &Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>, output: &str) {
   let mut cfg = Config::default();
 
   cfg.enc.width = gfx::SIZE;
   cfg.enc.height = gfx::SIZE;
   cfg.enc.speed_settings = SpeedSettings::from_preset(9);
-  cfg.enc.chroma_sampling = color::ChromaSampling::Cs444;
+  cfg.enc.chroma_sampling = color::ChromaSampling::Cs420;
 
   let mut ctx: Context<u8> = cfg.new_context().unwrap();
 
   for frame in frames {
     let mut f = ctx.new_frame();
-    f.planes[0].copy_from_raw_u8(&frame[0..gfx::SIZE*gfx::SIZE], gfx::SIZE, 1);
-    f.planes[1].copy_from_raw_u8(&frame[gfx::SIZE*gfx::SIZE..2*gfx::SIZE*gfx::SIZE], gfx::SIZE, 1);
-    f.planes[2].copy_from_raw_u8(&frame[2*gfx::SIZE*gfx::SIZE..3*gfx::SIZE*gfx::SIZE], gfx::SIZE, 1);
+    f.planes[0].copy_from_raw_u8(&frame.0[..], gfx::SIZE, 1);
+    f.planes[1].copy_from_raw_u8(&frame.1[..], gfx::SIZE, 1);
+    f.planes[2].copy_from_raw_u8(&frame.2[..], gfx::SIZE, 1);
 
     match ctx.send_frame(f) {
       Ok(_) => {},
