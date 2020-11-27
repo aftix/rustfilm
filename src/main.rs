@@ -194,8 +194,6 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
   let settings: settings::Settings = ron::from_str(&lines[0][..]).expect("deRONification failed");
   let grid: Vec<cell::Cell> = ron::from_str(&lines[1][..]).expect("deRONification failed");
 
-  //let mut states = simulation::rk(&grid, 0.01, simulation::derivs, &settings);
-  //let mut states = simulation::rk_adaptive(&grid, 0.01, simulation::derivs, &settings);
   let mut states = simulation::rk45(&grid, 0.01, 0.001, 0.1, simulation::derivs, &settings);
 
   let max_stress = states.par_iter_mut()
@@ -207,12 +205,6 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
     }).max_by(|f1, f2| f1.partial_cmp(f2).unwrap()).unwrap();
 
   let output = matches.value_of("output").unwrap_or("output.ivf").to_string();
-  //create_dir(&output).unwrap();
-
-  /*states.par_iter().for_each(|(iter, _time, state)| {
-    let name = format!("{}/{:0width$}.png", output, iter, width=5);
-    gfx::plot(&state, &name, max_stress);
-  });*/
 
   let frames: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> = states.par_iter().map(|(_iter, _time, state)| {
     to_i420(&gfx::plot_buf(&state, max_stress))
@@ -225,40 +217,16 @@ extern crate ivf;
 use rav1e::config::SpeedSettings;
 use rav1e::*;
 
-// Take interlaced RGB and translate it it 3 planes, Y U V
-fn to_i444(frame: &Vec<u8>) -> Vec<u8> {
-  let mut planes: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE*3];
-
-  for i in 0..gfx::SIZE*gfx::SIZE {
-    let r: f64 = frame[i*3] as f64;
-    let g: f64 = frame[i*3+1] as f64;
-    let b: f64 = frame[i*3+2] as f64;
-
-    let y = (0.257 * r) + (0.504 * g) + (0.098 * b) + 16.0;
-    let u = -(0.148 * r) - (0.291*g) + (0.439 * b) + 128.0;
-    let v = (0.439 * r) - (0.368 * g) - (0.071 * b) + 128.0;
-
-    let y = if y < 0.0 { 0.0 } else if y > 255.0 { 255.0 } else { y };
-    let u = if u < 0.0 { 0.0 } else if u > 255.0 { 255.0 } else { u };
-    let v = if v < 0.0 { 0.0 } else if v > 255.0 { 255.0 } else { v };
-
-    let y = y as u8;
-    let u = u as u8;
-    let v = v as u8;
-
-    planes[i] = y;
-    planes[i + gfx::SIZE*gfx::SIZE] = u;
-    planes[i + 2*gfx::SIZE*gfx::SIZE] = v;
-  }
-  planes
-}
-
 fn to_i420(frame: &Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
   let mut y_plane: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE];
   let mut u_plane: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE/4];
   let mut v_plane: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE/4];
 
-  let get_yuv = |r: f64, g: f64, b: f64| {
+  for i in 0..gfx::SIZE*gfx::SIZE {
+    let r = frame[i*3] as f64;
+    let g = frame[i*3 + 1] as f64;
+    let b = frame[i*3 + 2] as f64;
+
     let y = (0.257 * r) + (0.504 * g) + (0.098 * b) + 16.0;
     let u = -(0.148 * r) - (0.291*g) + (0.439 * b) + 128.0;
     let v = (0.439 * r) - (0.368 * g) - (0.071 * b) + 128.0;
@@ -270,44 +238,13 @@ fn to_i420(frame: &Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     let y = y as u8;
     let u = u as u8;
     let v = v as u8;
+    y_plane[i] = y;
 
-    (y, u, v)
-  };
+    let row = i % gfx::SIZE;
+    let col = i / gfx::SIZE;
 
-  for row in 0..gfx::SIZE/2 {
-    for column in 0..gfx::SIZE/2 {
-      let r_1: f64 = frame[(2*row + 2*column*gfx::SIZE) * 3] as f64;
-      let g_1: f64 = frame[(2*row + 2*column*gfx::SIZE) * 3 + 1] as f64;
-      let b_1: f64 = frame[(2*row + 2*column*gfx::SIZE) * 3 + 2] as f64;
-
-      let r_2: f64 = frame[(2*row + 1 + 2*column*gfx::SIZE) * 3] as f64;
-      let g_2: f64 = frame[(2*row + 1 + 2*column*gfx::SIZE) * 3 + 1] as f64;
-      let b_2: f64 = frame[(2*row + 1 + 2*column*gfx::SIZE) * 3 + 2] as f64;
-
-      let r_3: f64 = frame[(2*row + (2*column + 1)*gfx::SIZE) * 3] as f64;
-      let g_3: f64 = frame[(2*row + (2*column + 1)*gfx::SIZE) * 3 + 1] as f64;
-      let b_3: f64 = frame[(2*row + (2*column + 1)*gfx::SIZE) * 3 + 2] as f64;
-
-      let r_4: f64 = frame[(2*row + 1 + (2*column + 1)*gfx::SIZE) * 3] as f64;
-      let g_4: f64 = frame[(2*row + 1 + (2*column + 1)*gfx::SIZE) * 3 + 1] as f64;
-      let b_4: f64 = frame[(2*row + 1 + (2*column + 1)*gfx::SIZE) * 3 + 2] as f64;
-
-      let yuv_1 = get_yuv(r_1, b_1, g_1);
-      let yuv_2 = get_yuv(r_2, b_2, g_2);
-      let yuv_3 = get_yuv(r_3, b_3, g_3);
-      let yuv_4 = get_yuv(r_4, b_4, g_4);
-
-      let u_sum: u16 = yuv_1.1 as u16 + yuv_2.1 as u16 + yuv_3.1 as u16 + yuv_4.1 as u16;
-      let v_sum: u16 = yuv_1.2 as u16 + yuv_2.2 as u16 + yuv_3.2 as u16 + yuv_4.2 as u16;
-
-      y_plane[2*row + 2*column*gfx::SIZE] = yuv_1.0;
-      y_plane[2*row + 1 + 2*column*gfx::SIZE] = yuv_2.0;
-      y_plane[2*row + (2*column + 1)*gfx::SIZE] = yuv_3.0;
-      y_plane[2*row + 1+ (2*column + 1)*gfx::SIZE] = yuv_4.0;
-
-      u_plane[row + column*gfx::SIZE/2] = (u_sum / 4) as u8;
-      v_plane[row + column*gfx::SIZE/2] = (v_sum / 4) as u8;
-    }
+    u_plane[(row/2) + (col/2)*gfx::SIZE/2] += u / 4;
+    v_plane[(row/2) + (col/2)*gfx::SIZE/2] += v / 4;
   }
 
   (y_plane, u_plane, v_plane)
@@ -327,8 +264,8 @@ fn encode(frames: &Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>, output: &str) {
   for frame in frames {
     let mut f = ctx.new_frame();
     f.planes[0].copy_from_raw_u8(&frame.0[..], gfx::SIZE, 1);
-    f.planes[1].copy_from_raw_u8(&frame.1[..], gfx::SIZE, 1);
-    f.planes[2].copy_from_raw_u8(&frame.2[..], gfx::SIZE, 1);
+    f.planes[1].copy_from_raw_u8(&frame.1[..], gfx::SIZE/2, 1);
+    f.planes[2].copy_from_raw_u8(&frame.2[..], gfx::SIZE/2, 1);
 
     match ctx.send_frame(f) {
       Ok(_) => {},
