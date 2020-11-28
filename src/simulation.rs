@@ -9,7 +9,7 @@ pub fn derivs(t: f64, y: &mut Vec<cell::Cell>, settings: &settings::Settings) ->
 
   let grid = y.clone();
 
-  let forces: Vec<(f64, f64)> = y.par_iter_mut().enumerate().map(|(i, mut cell_a)| {
+  let forces: Vec<(f64, f64)> = y.iter_mut().enumerate().map(|(i, mut cell_a)| {
     let mut net_force = grid.iter().enumerate().map(|(j, cell_b)| {
         let mut net_force = (0.0, 0.0);
         let a_to_b = cell_b.pos.sub(&cell_a.pos);
@@ -82,7 +82,7 @@ pub fn euler(
   let mut state = grid.clone();
 
   let mut time = 0.0;
-  let mut iter = 0;
+  let mut i_ter = 0;
 
   while time < settings.del_t {
     path.push((iter, time, state.clone().to_vec()));
@@ -325,12 +325,12 @@ pub fn rk45(
       }
     }).collect();
 
-    state.par_iter_mut().enumerate().for_each(|(i, cell)| {
+    state.iter_mut().enumerate().for_each(|(i, cell)| {
       cell.pos.x = path[path.len() - 1].2[i].pos.x + d[0] * k1[i*2] + d[1] * k2[i*2] + d[2] * k3[i*2] + d[3] * k4[i*2] + d[4] * k5[i*2] + d[5]*k6[i*2];
       cell.pos.y = path[path.len() - 1].2[i].pos.y + d[0] * k1[i*2+1] + d[1] * k2[i*2+1] + d[2] * k3[i*2+1] + d[3] * k4[i*2+1] + d[4] * k5[i*2+1] + d[5]*k6[i*2+1];
     });
 
-    let error = fifth_order.par_iter().zip(fourth_order.par_iter()).map(|(five, four)| {
+    let error = fifth_order.iter().zip(fourth_order.iter()).map(|(five, four)| {
       (five - four).powi(2)
     }).sum::<f64>().sqrt();
 
@@ -487,7 +487,7 @@ pub struct Strainavg {
 }
 
 pub fn get_strain(grid: &mut Vec<cell::Cell>, _t: f64) -> Strainavg {
-  let mut avgs = grid.iter_mut().map(|mut cell| {
+  let mut avgs = grid.par_iter_mut().map(|mut cell| {
     let mut avgs = Strainavg{
       maxdisplace: 0.0,
       maxxoff: 0.0,
@@ -507,7 +507,7 @@ pub fn get_strain(grid: &mut Vec<cell::Cell>, _t: f64) -> Strainavg {
     }
 
     avgs
-  }).fold(Strainavg{maxdisplace: 0.0, maxxoff: 0.0, maxyoff: 0.0, avgstrain: cell::Pos{x: 0.0, y: 0.0}}, |acc, s| {
+  }).reduce(|| Strainavg{maxdisplace: 0.0, maxxoff: 0.0, maxyoff: 0.0, avgstrain: cell::Pos{x: 0.0, y: 0.0}}, |acc, s| {
     let mut avgs = Strainavg {
       maxdisplace: s.maxdisplace,
       maxxoff: s.maxxoff,
