@@ -82,7 +82,7 @@ pub fn euler(
   let mut state = grid.clone();
 
   let mut time = 0.0;
-  let mut i_ter = 0;
+  let mut iter = 0;
 
   while time < settings.del_t {
     path.push((iter, time, state.clone().to_vec()));

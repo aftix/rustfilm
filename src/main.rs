@@ -218,7 +218,7 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
   let frames: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> = states.par_iter().map(|(_iter, _time, state)| {
     to_i420(&gfx::plot_buf(&state, max_stress))
   }).collect();
-  //encode(&frames, &output[..], threads);
+  encode(&frames, &output[..], threads);
 }
 
 extern crate rav1e;
