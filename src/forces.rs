@@ -5,6 +5,7 @@ use crate::{cell, settings};
 pub enum ForceFunc {
   None,
   Constrained,
+  Sine,
 }
 
 pub fn force_func(e: &ForceFunc) ->
@@ -18,6 +19,7 @@ pub fn force_func(e: &ForceFunc) ->
   match e {
     ForceFunc::None => force_none,
     ForceFunc::Constrained => force_constrained,
+    ForceFunc::Sine => force_sine,
   }
 }
 
@@ -48,6 +50,19 @@ pub fn force_constrained(
 
   cell::Pos{
     x: constraint.x + force_x,
+    y: constraint.y
+  }
+}
+
+pub fn force_sine(
+  t: f64,
+  c: &mut cell::Cell,
+  i: usize,
+  s: &settings::Settings
+) -> cell::Pos {
+  let constraint = linear_restraint(t, c, i, s);
+  cell::Pos{
+    x: constraint.x + s.sineamp * (s.sineomega * t).sin(),
     y: constraint.y
   }
 }
