@@ -215,10 +215,7 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
 
   let output = matches.value_of("output").unwrap_or("output.ivf").to_string();
 
-  let frames: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> = states.par_iter().map(|(_iter, _time, state)| {
-    to_i420(&gfx::plot_buf(&state, max_stress))
-  }).collect();
-  encode(&frames, &output[..], threads);
+  encode(&states, &output[..], threads, max_stress);
 }
 
 extern crate rav1e;
@@ -259,8 +256,7 @@ fn to_i420(frame: &Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
   (y_plane, u_plane, v_plane)
 }
 
-// frames in i420
-fn encode(frames: &Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>, output: &str, threads: usize) {
+fn encode(states: &Vec<(i32, f64, Vec<cell::Cell>)>, output: &str, threads: usize, max_stress: f64) {
   let mut cfg = Config::default();
 
   cfg.enc.width = gfx::SIZE;
@@ -270,7 +266,9 @@ fn encode(frames: &Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>, output: &str, threads: usiz
 
   let threads = if threads <= 1 { 2 } else { threads };
 
-  let packets: Vec<Vec<Packet<u8>>> = frames.par_chunks(frames.len() / threads).map(|frames| {
+  let packets: Vec<Vec<Packet<u8>>> = states.par_chunks(states.len() / threads).map(|states| {
+    states.par_iter().map(|(_iter, _time, state)| to_i420(&gfx::plot_buf(state, max_stress))).collect()
+  }).map(|frames: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>| {
     let mut ctx: Context<u8> = cfg.new_context().unwrap();
     let mut packets: Vec<Packet<u8>> = vec![];
 
@@ -310,7 +308,7 @@ fn encode(frames: &Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>, output: &str, threads: usiz
     packets
   }).collect();
 
-  let mut file = File::create(output).expect("File creation failed");
+    let mut file = File::create(output).expect("File creation failed");
   ivf::write_ivf_header(&mut file, gfx::SIZE, gfx::SIZE, gfx::FPS, 1);
 
   let mut pts = 0;
