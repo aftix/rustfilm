@@ -346,19 +346,16 @@ fn encode(frames: &Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>, output: &str, threads: usiz
 
   let mut packets_super: Vec<(u32, Vec<Packet<u8>>)> = vec![];
 
-  println!("Recieving");
   for recv in rx {
     packets_super.push(recv);
   }
 
-  println!("Closing");
   for h in handles {
     h.join().unwrap();
   }
 
   packets_super.sort_by(|t1, t2| t1.0.cmp(&t2.0));
 
-  println!("writing");
   let mut file = File::create(output).expect("File creation failed");
   ivf::write_ivf_header(&mut file, gfx::SIZE, gfx::SIZE, gfx::FPS, 1);
 
