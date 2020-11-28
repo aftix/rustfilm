@@ -3,12 +3,14 @@ extern crate rustfilm;
 extern crate ron;
 extern crate num;
 extern crate rayon;
+extern crate num_cpus;
 
 use clap::{Arg, App, SubCommand};
 use rustfilm::{update, generation, settings, gfx, simulation, cell};
 use std::fs::File;
 use std::io::{Write, BufRead, BufReader};
 use rayon::prelude::*;
+use std::sync::mpsc;
 
 fn main() {
   let matches = App::new("rustfilm").version("1.0")
@@ -130,6 +132,12 @@ fn main() {
                       .help("Output directory")
                       .takes_value(true)
                     )
+                    .arg(Arg::with_name("threads")
+                      .long("threads")
+                      .value_name("N")
+                      .help("Number of threads to decode with")
+                      .takes_value(true)
+                    )
                   )
                   .get_matches();
 
@@ -183,6 +191,7 @@ fn generate(grid_name: &str, matches: &clap::ArgMatches) {
 }
 
 fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
+  let threads = matches.value_of("threads").unwrap_or(&num_cpus::get().to_string()).parse::<usize>().expect("Bad threads value");
   let file = File::open(grid_name).expect("Failed to open file");
   let buffered = BufReader::new(file);
   let mut lines: Vec<String> = vec![];
@@ -209,7 +218,7 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
   let frames: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> = states.par_iter().map(|(_iter, _time, state)| {
     to_i420(&gfx::plot_buf(&state, max_stress))
   }).collect();
-  encode(&frames, &output[..]);
+  encode(&frames, &output[..], threads);
 }
 
 extern crate rav1e;
@@ -250,8 +259,16 @@ fn to_i420(frame: &Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
   (y_plane, u_plane, v_plane)
 }
 
+struct EncoderThread {
+  ctx: Context<u8>,
+  id: u32,
+  size: usize,
+  pkts: Vec<Packet<u8>>,
+  frames: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>
+}
+
 // frames in i420
-fn encode(frames: &Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>, output: &str) {
+fn encode(frames: &Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>, output: &str, threads: usize) {
   let mut cfg = Config::default();
 
   cfg.enc.width = gfx::SIZE;
@@ -259,43 +276,98 @@ fn encode(frames: &Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>, output: &str) {
   cfg.enc.speed_settings = SpeedSettings::from_preset(9);
   cfg.enc.chroma_sampling = color::ChromaSampling::Cs420;
 
-  let mut ctx: Context<u8> = cfg.new_context().unwrap();
-
-  for frame in frames {
-    let mut f = ctx.new_frame();
-    f.planes[0].copy_from_raw_u8(&frame.0[..], gfx::SIZE, 1);
-    f.planes[1].copy_from_raw_u8(&frame.1[..], gfx::SIZE/2, 1);
-    f.planes[2].copy_from_raw_u8(&frame.2[..], gfx::SIZE/2, 1);
-
-    match ctx.send_frame(f) {
-      Ok(_) => {},
-      Err (e) => match e {
-        EncoderStatus::EnoughData => panic!("unable to append frame to internal queue"),
-        _ => panic!("Unable to send frame")
+  let mut thread_info: Vec<EncoderThread> = vec![];
+  let num_per = frames.len() / threads;
+  for i in 0..threads {
+    let mut t_frames: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> = vec![];
+    for j in i*num_per..(i+1)*num_per {
+      t_frames.push(frames[j].clone());
+    }
+    if i == threads - 1 {
+      for j in (i+1)*num_per..frames.len() {
+        t_frames.push(frames[j].clone());
       }
     }
+
+    thread_info.push(EncoderThread{
+      ctx: cfg.new_context().unwrap(),
+      id: i as u32,
+      size: if i == threads - 1 { frames.len() - i*num_per } else { num_per },
+      pkts: vec![],
+      frames: t_frames
+    });
   }
 
-  ctx.flush();
+  let encode = |info: &mut EncoderThread| {
+    for i in 0..info.size {
+      let mut f = info.ctx.new_frame();
+      f.planes[0].copy_from_raw_u8(&info.frames[i].0[..], gfx::SIZE, 1);
+      f.planes[1].copy_from_raw_u8(&info.frames[i].1[..], gfx::SIZE/2, 1);
+      f.planes[2].copy_from_raw_u8(&info.frames[i].2[..], gfx::SIZE/2, 1);
 
-  let mut file = File::create(output).expect("File creation failed");
-  ivf::write_ivf_header(&mut file, gfx::SIZE, gfx::SIZE, gfx::FPS, 1);
+      match info.ctx.send_frame(f) {
+        Ok(_) => {},
+        Err (e) => match e {
+          EncoderStatus::EnoughData => panic!("unable to append frame to internal queue"),
+          _ => panic!("Unable to send frame")
+        }
+      }
+    }
 
-  loop {
-    match ctx.receive_packet() {
-      Ok(pkt) => {
-        ivf::write_ivf_frame(&mut file, pkt.input_frameno, &pkt.data[..]);
-      },
-      Err(e) => match e {
+    info.ctx.flush();
+
+    loop {
+      match info.ctx.receive_packet() {
+        Ok(pkt) => info.pkts.push(pkt),
+        Err(e) => match e {
         EncoderStatus::LimitReached => {
           break;
         },
         EncoderStatus::Encoded => {},
         EncoderStatus::NeedMoreData => {
-          ctx.send_frame(None).unwrap();
+          info.ctx.send_frame(None).unwrap();
         },
         _ => panic!("Unable to recieve packet")
+        }
       }
-    };
+    }
+  };
+
+  let mut handles = vec![];
+  let (tx, rx) = mpsc::channel();
+  for mut i in thread_info {
+    let tx = tx.clone();
+    handles.push(std::thread::spawn(move || {
+      encode(&mut i);
+      tx.send((i.id, i.pkts)).unwrap();
+    }));
+  }
+  drop(tx);
+
+  let mut packets_super: Vec<(u32, Vec<Packet<u8>>)> = vec![];
+
+  println!("Recieving");
+  for recv in rx {
+    packets_super.push(recv);
+  }
+
+  println!("Closing");
+  for h in handles {
+    h.join().unwrap();
+  }
+
+  packets_super.sort_by(|t1, t2| t1.0.cmp(&t2.0));
+
+  println!("writing");
+  let mut file = File::create(output).expect("File creation failed");
+  ivf::write_ivf_header(&mut file, gfx::SIZE, gfx::SIZE, gfx::FPS, 1);
+
+  let mut frameno = 0;
+
+  for (_, pkts) in &packets_super {
+    for pkt in pkts {
+      ivf::write_ivf_frame(&mut file, frameno, &pkt.data[..]);
+      frameno += 1;
+    }
   }
 }
