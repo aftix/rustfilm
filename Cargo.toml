@@ -10,11 +10,9 @@ edition = "2018"
 serde={ version = "1.0.117", features=["derive"]}
 ron="0.6.2"
 num="0.3.1"
-nalgebra="0.23.1"
 float-cmp="0.5.2"
 clap="2.33.3"
 plotters="0.3.0"
 rayon="1.5.0"
-rav1e="0.3.4"
-ivf="0.1.0"
 num_cpus="1.0"
+x264={git="https://github.com/rust-av/x264-rs/"}

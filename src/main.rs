@@ -4,6 +4,7 @@ extern crate ron;
 extern crate num;
 extern crate rayon;
 extern crate num_cpus;
+extern crate x264;
 
 use clap::{Arg, App, SubCommand};
 use rustfilm::{update, generation, settings, gfx, simulation, cell};
@@ -127,14 +128,8 @@ fn main() {
                     .author("Wyatt Campbell <wyatt.campbell@utexas.edu>")
                     .arg(Arg::with_name("output")
                       .long("output")
-                      .value_name("DIR")
+                      .value_name("H.264 FILE")
                       .help("Output directory")
-                      .takes_value(true)
-                    )
-                    .arg(Arg::with_name("threads")
-                      .long("threads")
-                      .value_name("N")
-                      .help("Number of threads to decode with")
                       .takes_value(true)
                     )
                   )
@@ -190,7 +185,6 @@ fn generate(grid_name: &str, matches: &clap::ArgMatches) {
 }
 
 fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
-  let threads = matches.value_of("threads").unwrap_or(&num_cpus::get().to_string()).parse::<usize>().expect("Bad threads value");
   let file = File::open(grid_name).expect("Failed to open file");
   let buffered = BufReader::new(file);
   let mut lines: Vec<String> = vec![];
@@ -213,15 +207,10 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
     }).max_by(|f1, f2| f1.partial_cmp(f2).unwrap()).unwrap();
   let max_stress = if max_stress <= 1e-5 { 1.0 } else { max_stress };
 
-  let output = matches.value_of("output").unwrap_or("output.ivf").to_string();
+  let output = matches.value_of("output").unwrap_or("output.h264").to_string();
 
-  encode(&states, &output[..], threads, max_stress);
+  encode(&states, &output, max_stress);
 }
-
-extern crate rav1e;
-extern crate ivf;
-use rav1e::config::SpeedSettings;
-use rav1e::*;
 
 fn to_i420(frame: &Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
   let mut y_plane: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE];
@@ -256,66 +245,38 @@ fn to_i420(frame: &Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
   (y_plane, u_plane, v_plane)
 }
 
-fn encode(states: &Vec<(i32, f64, Vec<cell::Cell>)>, output: &str, threads: usize, max_stress: f64) {
-  let mut cfg = Config::default();
+fn encode(states: &Vec<(i32, f64, Vec<cell::Cell>)>, output: &str, max_stress: f64) {
+  let mut par = x264::Param::new();
+  par = par.set_dimension(gfx::SIZE, gfx::SIZE);
+  par = par.param_parse("repeat_headers", "1").unwrap();
+  par = par.param_parse("annexb", "1").unwrap();
+  par = par.param_parse("fps", &gfx::FPS.to_string()).unwrap();
+  par = par.apply_profile("high").unwrap();
 
-  cfg.enc.width = gfx::SIZE;
-  cfg.enc.height = gfx::SIZE;
-  cfg.enc.speed_settings = SpeedSettings::from_preset(9);
-  cfg.enc.chroma_sampling = color::ChromaSampling::Cs420;
+  let mut pic = x264::Picture::from_param(&par).unwrap();
 
-  let threads = if threads <= 1 { 2 } else { threads };
+  let mut enc = x264::Encoder::open(&mut par).unwrap();
+  let mut output = File::create(output).expect("Unable to open output file");
+  let mut timestamp = 0;
 
-  let packets: Vec<Vec<Packet<u8>>> = states.par_chunks(states.len() / threads).map(|states| {
-    states.par_iter().map(|(_iter, _time, state)| to_i420(&gfx::plot_buf(state, max_stress))).collect()
-  }).map(|frames: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>| {
-    let mut ctx: Context<u8> = cfg.new_context().unwrap();
-    let mut packets: Vec<Packet<u8>> = vec![];
+  for (_, _, state) in states {
+    let frame = to_i420(&gfx::plot_buf(&state, max_stress));
+    pic.as_mut_slice(0).unwrap().copy_from_slice(&frame.0);
+    pic.as_mut_slice(1).unwrap().copy_from_slice(&frame.1);
+    pic.as_mut_slice(2).unwrap().copy_from_slice(&frame.2);
 
-    for frame in frames {
-      let mut f = ctx.new_frame();
-      f.planes[0].copy_from_raw_u8(&frame.0[..], gfx::SIZE, 1);
-      f.planes[1].copy_from_raw_u8(&frame.1[..], gfx::SIZE/2, 1);
-      f.planes[2].copy_from_raw_u8(&frame.2[..], gfx::SIZE/2, 1);
-
-      match ctx.send_frame(f) {
-        Ok(_) => {},
-        Err (e) => match e {
-          EncoderStatus::EnoughData => panic!("unable to append frame to internal queue"),
-          _ => panic!("Unable to send frame")
-        }
-      }
+    pic = pic.set_timestamp(timestamp);
+    timestamp += 1;
+    if let Some((nal, _, _)) = enc.encode(&pic).unwrap() {
+      let buf = nal.as_bytes();
+      output.write_all(buf).unwrap();
     }
+  }
 
-    ctx.flush();
-
-    loop {
-      match ctx.receive_packet() {
-        Ok(pkt) => packets.push(pkt),
-        Err(e) => match e {
-        EncoderStatus::LimitReached => {
-          break;
-        },
-        EncoderStatus::Encoded => {},
-        EncoderStatus::NeedMoreData => {
-          ctx.send_frame(None).unwrap();
-        },
-        _ => panic!("Unable to recieve packet")
-        }
-      }
-    }
-
-    packets
-  }).collect();
-
-    let mut file = File::create(output).expect("File creation failed");
-  ivf::write_ivf_header(&mut file, gfx::SIZE, gfx::SIZE, gfx::FPS, 1);
-
-  let mut pts = 0;
-  for p in packets {
-    for pkt in p {
-      ivf::write_ivf_frame(&mut file, pts, &pkt.data[..]);
-      pts += 1;
+  while enc.delayed_frames() {
+    if let Some((nal, _, _)) = enc.encode(None).unwrap() {
+      let buf = nal.as_bytes();
+      output.write_all(buf).unwrap();
     }
   }
 }
