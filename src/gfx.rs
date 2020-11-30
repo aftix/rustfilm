@@ -86,3 +86,150 @@ pub fn plot_buf(grid: &Vec<cell::Cell>, max_stress: f64) -> Vec<u8> {
 
   rgb
 }
+
+pub fn plot_avgstress(avgstress: &Vec<(f64, f64)>, name: &str) {
+  let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();
+  drawing_area.fill(&WHITE).unwrap();
+
+  let max_time = avgstress.iter().max_by(|t1, t2| t1.0.partial_cmp(&t2.0).unwrap()).unwrap().0;
+  let max_avg = avgstress.iter().max_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap()).unwrap().1;
+  let min_avg = avgstress.iter().min_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap()).unwrap().1;
+
+  let mut chart = ChartBuilder::on(&drawing_area)
+    .margin(5)
+    .set_all_label_area_size(50)
+    .caption("Average Stress vs Time", ("sans-serif", 50))
+    .build_cartesian_2d(
+      0f32..1.25 * max_time as f32,
+      if min_avg > 0.0 { 0f32 } else { min_avg as f32 * 1.25 }..1.25 * max_avg as f32
+    ).unwrap();
+
+  chart.configure_mesh().x_labels(10).y_labels(10).disable_mesh().draw().unwrap();
+
+  chart.draw_series(PointSeries::of_element(
+      avgstress.iter().map(|(t, avg)| (*t as f32, *avg as f32)),
+      5,
+      ShapeStyle::from(&BLACK).filled(),
+      &|coord, size, style| {
+        EmptyElement::at(coord) + Circle::new((0, 0), size, style)
+      }
+  )).unwrap();
+}
+
+pub fn plot_dist(avgdist: &Vec<(f64, f64)>, name: &str) {
+  let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();
+  drawing_area.fill(&WHITE).unwrap();
+
+  let max_time = avgdist.iter().max_by(|t1, t2| t1.0.partial_cmp(&t2.0).unwrap()).unwrap().0;
+  let max_dist = avgdist.iter().max_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap()).unwrap().1;
+  let min_dist = avgdist.iter().min_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap()).unwrap().1;
+
+  let mut chart = ChartBuilder::on(&drawing_area)
+    .margin(5)
+    .set_all_label_area_size(50)
+    .caption("Average Displacement vs Time", ("sans-serif", 50))
+    .build_cartesian_2d(
+      0f32..1.25 * max_time as f32,
+      if min_dist > 0.0 { 0f32 } else { min_dist as f32 * 1.25 }..1.25 * max_dist as f32
+    ).unwrap();
+
+  chart.configure_mesh().x_labels(10).y_labels(10).disable_mesh().draw().unwrap();
+
+  chart.draw_series(PointSeries::of_element(
+      avgdist.iter().map(|(t, avg)| (*t as f32, *avg as f32)),
+      5,
+      ShapeStyle::from(&BLACK).filled(),
+      &|coord, size, style| {
+        EmptyElement::at(coord) + Circle::new((0, 0), size, style)
+      }
+  )).unwrap();
+}
+
+pub fn plot_xoff(avgdist: &Vec<(f64, f64)>, name: &str) {
+  let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();
+  drawing_area.fill(&WHITE).unwrap();
+
+  let max_time = avgdist.iter().max_by(|t1, t2| t1.0.partial_cmp(&t2.0).unwrap()).unwrap().0;
+  let max_dist = avgdist.iter().max_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap()).unwrap().1;
+  let min_dist = avgdist.iter().min_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap()).unwrap().1;
+
+  let mut chart = ChartBuilder::on(&drawing_area)
+    .margin(5)
+    .set_all_label_area_size(50)
+    .caption("Average X offset vs Time", ("sans-serif", 50))
+    .build_cartesian_2d(
+      0f32..1.25 * max_time as f32,
+      if min_dist > 0.0 { 0f32 } else { min_dist as f32 * 1.25 }..1.25 * max_dist as f32
+    ).unwrap();
+
+  chart.configure_mesh().x_labels(10).y_labels(10).disable_mesh().draw().unwrap();
+
+  chart.draw_series(PointSeries::of_element(
+      avgdist.iter().map(|(t, avg)| (*t as f32, *avg as f32)),
+      5,
+      ShapeStyle::from(&BLACK).filled(),
+      &|coord, size, style| {
+        EmptyElement::at(coord) + Circle::new((0, 0), size, style)
+      }
+  )).unwrap();
+}
+
+pub fn plot_yoff(avgdist: &Vec<(f64, f64)>, name: &str) {
+  let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();
+  drawing_area.fill(&WHITE).unwrap();
+
+  let max_time = avgdist.iter().max_by(|t1, t2| t1.0.partial_cmp(&t2.0).unwrap()).unwrap().0;
+  let max_dist = avgdist.iter().max_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap()).unwrap().1;
+  let min_dist = avgdist.iter().min_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap()).unwrap().1;
+
+  let mut chart = ChartBuilder::on(&drawing_area)
+    .margin(5)
+    .set_all_label_area_size(50)
+    .caption("Average Y offset vs Time", ("sans-serif", 50))
+    .build_cartesian_2d(
+      0f32..1.25 * max_time as f32,
+      if min_dist > 0.0 { 0f32 } else { min_dist as f32 * 1.25 }..1.25 * max_dist as f32
+    ).unwrap();
+
+  chart.configure_mesh().x_labels(10).y_labels(10).disable_mesh().draw().unwrap();
+
+  chart.draw_series(PointSeries::of_element(
+      avgdist.iter().map(|(t, avg)| (*t as f32, *avg as f32)),
+      5,
+      ShapeStyle::from(&BLACK).filled(),
+      &|coord, size, style| {
+        EmptyElement::at(coord) + Circle::new((0, 0), size, style)
+      }
+  )).unwrap();
+}
+
+// avg stress vs avg strain
+pub fn plot_stressstrain(strstr: &Vec<(f64, f64)>, name: &str) {
+  let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();
+  drawing_area.fill(&WHITE).unwrap();
+
+  let max_stress = strstr.iter().max_by(|t1, t2| t1.0.partial_cmp(&t2.0).unwrap()).unwrap().0;
+  let min_stress = strstr.iter().min_by(|t1, t2| t1.0.partial_cmp(&t2.0).unwrap()).unwrap().0;
+  let max_strain = strstr.iter().max_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap()).unwrap().1;
+  let min_strain = strstr.iter().min_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap()).unwrap().1;
+
+  let mut chart = ChartBuilder::on(&drawing_area)
+    .margin(5)
+    .set_all_label_area_size(50)
+    .caption("Average Stress vs Average Strain", ("sans-serif", 50))
+    .build_cartesian_2d(
+      if min_strain > 0.0 { 0f32 } else { min_strain as f32 * 1.25 }..max_strain as f32,
+      if min_stress > 0.0 { 0f32 } else { min_stress as f32 * 1.25 }..1.25 * max_stress as f32
+    ).unwrap();
+
+  chart.configure_mesh().x_labels(10).y_labels(10).disable_mesh().draw().unwrap();
+
+  chart.draw_series(PointSeries::of_element(
+      strstr.iter().map(|(stress, strain)| (*strain as f32, *stress as f32)),
+      5,
+      ShapeStyle::from(&BLACK).filled(),
+      &|coord, size, style| {
+        EmptyElement::at(coord) + Circle::new((0, 0), size, style)
+      }
+  )).unwrap();
+}

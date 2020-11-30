@@ -728,10 +728,10 @@ pub fn get_stress(grid: &mut Vec<cell::Cell>, t: f64, settings: &settings::Setti
 }
 
 pub struct Strainavg {
-  maxdisplace: f64,
-  maxxoff: f64,
-  maxyoff: f64,
-  avgstrain: cell::Pos
+  pub maxdisplace: f64,
+  pub maxxoff: f64,
+  pub maxyoff: f64,
+  pub avgstrain: cell::Pos
 }
 
 pub fn get_strain(grid: &mut Vec<cell::Cell>, _t: f64) -> Strainavg {

@@ -132,6 +132,36 @@ fn main() {
                       .help("Output directory")
                       .takes_value(true)
                     )
+                    .arg(Arg::with_name("avgstress")
+                      .long("avgstress")
+                      .value_name("PNG FILE")
+                      .help("File to output average stress vs time graph to")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("dist")
+                      .long("dist")
+                      .value_name("PNG FILE")
+                      .help("File to output average displacement vs time graph to")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("xoff")
+                      .long("xoff")
+                      .value_name("PNG FILE")
+                      .help("File to output average x offset vs time graph to")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("yoff")
+                      .long("yoff")
+                      .value_name("PNG FILE")
+                      .help("File to output average y offset vs time graph to")
+                      .takes_value(true)
+                    )
+                    .arg(Arg::with_name("stressstrain")
+                      .long("stressstrain")
+                      .value_name("PNG FILE")
+                      .help("File to output average stress vs average strain to")
+                      .takes_value(true)
+                    )
                   )
                   .get_matches();
 
@@ -200,18 +230,62 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
   //let mut states = simulation::predictor_corrector(&grid, 0.01, simulation::derivs, &settings);
   let mut states = simulation::predictor_corrector_adaptive(&grid, 0.01, 0.001, 0.1, simulation::derivs, &settings);
 
-  let max_stress = states.par_iter_mut()
+  let stress: Vec<_> = states.par_iter_mut()
     .map(|tuple| {
       let time = tuple.1;
       let state = &mut tuple.2;
       let avgs = simulation::get_stress(state, time, &settings);
-      if -avgs.max_tension > avgs.max_compression { -avgs.max_tension } else { avgs.max_compression }
-    }).max_by(|f1, f2| f1.partial_cmp(f2).unwrap()).unwrap();
+      if -avgs.max_tension > avgs.max_compression {
+        (-avgs.max_tension, avgs)
+      } else {
+        (avgs.max_compression, avgs)
+      }
+    }).collect();
+  let max_stress = stress.iter().max_by(|f1, f2| f1.0.partial_cmp(&f2.0).unwrap()).unwrap().0;
   let max_stress = if max_stress <= 1e-5 { 1.0 } else { max_stress };
 
   let output = matches.value_of("output").unwrap_or("output.h264").to_string();
 
   encode(&states, &output, max_stress);
+
+  if let Some(avgstress) = matches.value_of("avgstress") {
+    let stress: Vec<_> = states.iter().enumerate().map(|(ind, (_iter, time, _state))| {
+        (*time, stress[ind].1.avg_stress)
+    }).collect();
+    gfx::plot_avgstress(&stress, avgstress);
+  }
+
+  let strain: Vec<_> = states.iter_mut().map(|tuple| {
+    simulation::get_strain(&mut tuple.2, tuple.1)
+  }).collect();
+
+  if let Some(disp) = matches.value_of("dist") {
+    let strain: Vec<_> = strain.iter().enumerate().map(|(ind, strain)| {
+      (states[ind].1, strain.avgstrain.norm())
+    }).collect();
+    gfx::plot_dist(&strain, disp);
+  }
+
+  if let Some(xoff) = matches.value_of("xoff") {
+    let strain: Vec<_> = strain.iter().enumerate().map(|(ind, strain)| {
+      (states[ind].1, strain.avgstrain.x)
+    }).collect();
+    gfx::plot_dist(&strain, xoff);
+  }
+
+  if let Some(yoff) = matches.value_of("yoff") {
+    let strain: Vec<_> = strain.iter().enumerate().map(|(ind, strain)| {
+      (states[ind].1, strain.avgstrain.y)
+    }).collect();
+    gfx::plot_dist(&strain, yoff);
+  }
+
+  if let Some(stressstrain) = matches.value_of("stressstrain") {
+    let strain: Vec<_> = strain.iter().enumerate().map(|(ind, strain)| {
+      (stress[ind].1.avg_stress, strain.avgstrain.norm())
+    }).collect();
+    gfx::plot_stressstrain(&strain, stressstrain);
+  }
 }
 
 fn to_i420(frame: &Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
