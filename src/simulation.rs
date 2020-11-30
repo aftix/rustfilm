@@ -85,7 +85,7 @@ pub fn euler(
   let mut iter = 0;
 
   while time < settings.del_t {
-    path.push((iter, time, state.clone().to_vec()));
+    path.push((iter, time, state.clone()));
     let change = dy(time, &mut state, &settings);
 
     for i in 0..state.len() {
@@ -97,7 +97,7 @@ pub fn euler(
     time += dt;
     iter += 1;
   }
-  path.push((iter, time, state.clone().to_vec()));
+  path.push((iter, time, state.clone()));
   path
 }
 
@@ -114,7 +114,7 @@ pub fn rk(
   let mut iter = 0;
 
   while time < settings.del_t {
-    path.push((iter, time, state.clone().to_vec()));
+    path.push((iter, time, state.clone()));
 
     let k1 = dy(time, &mut state, &settings);
     for (i, cell) in state.iter_mut().enumerate() {
@@ -143,7 +143,7 @@ pub fn rk(
     time += dt;
     iter += 1;
   }
-  path.push((iter, time, state.clone().to_vec()));
+  path.push((iter, time, state.clone()));
   path
 }
 
@@ -155,7 +155,7 @@ pub fn predictor_corrector(
 ) -> Vec<(i32, f64, Vec<cell::Cell>)> {
   let mut path: Vec<(i32, f64, Vec<cell::Cell>)> = vec![];
   let mut state = grid.clone();
-  path.push((0, 0.0, state.clone().to_vec()));
+  path.push((0, 0.0, state.clone()));
 
   let mut time = 0.0;
 
@@ -191,7 +191,7 @@ pub fn predictor_corrector(
       c.pos.y = path[i].2[ind].pos.y + (k1[ind*2+1] + 2.0*k2[ind*2+1] + 2.0*k3[ind*2+1] + k4[ind*2+1]) / 6.0;
     });
     time += dt;
-    path.push(((i+1) as i32, time, state.clone().to_vec()));
+    path.push(((i+1) as i32, time, state.clone()));
   }
 
   let mut iter = 5;
@@ -222,7 +222,7 @@ pub fn predictor_corrector(
       c.pos.x = state1[ind].pos.x + dt * (9.0 * f[ind*2] + 19.0*f1[ind*2] - 5.0*f2[ind*2] + f3[ind*2])/24.0;
       c.pos.y = state1[ind].pos.y + dt * (9.0 * f[ind*2+1] + 19.0*f1[ind*2+1] - 5.0*f2[ind*2+1] + f3[ind*2+1])/24.0;
     });
-    path.push((iter, time, state.clone().to_vec()));
+    path.push((iter, time, state.clone()));
     iter += 1;
   }
 
@@ -246,7 +246,7 @@ pub fn rk_adaptive(
 
   while time < settings.del_t {
     if iter_last != iter {
-      path.push((iter, time, state.clone().to_vec()));
+      path.push((iter, time, state.clone()));
     }
     iter_last = iter;
 
@@ -314,7 +314,7 @@ pub fn rk_adaptive(
     time += dt;
     iter += 1;
   }
-  path.push((iter, time, state.clone().to_vec()));
+  path.push((iter, time, state.clone()));
   path
 }
 
@@ -350,7 +350,7 @@ pub fn rk45(
   while time < settings.del_t {
     // Only push state if we actually took a step
     if last_iter != iter {
-      path.push((iter, time, state.clone().to_vec()));
+      path.push((iter, time, state.clone()));
     }
     last_iter = iter;
 
@@ -427,7 +427,173 @@ pub fn rk45(
       dt = dt_min;
     }
   }
-  path.push((iter, time, state.clone().to_vec()));
+  path.push((iter, time, state.clone()));
+  path
+}
+
+// Return a vector containing state given and next 3 states
+fn pca_rk4(
+  mut time: f64,
+  dt: f64,
+  dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
+  grid: &Vec<cell::Cell>,
+  settings: &settings::Settings
+) -> Vec<(f64, Vec<cell::Cell>)> {
+  let mut path: Vec<(f64, Vec<cell::Cell>)> = vec![];
+  path.push((time, grid.clone()));
+  let mut state = grid.clone();
+
+  for i in 0..3 {
+    let mut k1 = dy(time, &mut state, &settings);
+    k1.iter_mut().for_each(|k| {*k *= dt;});
+
+    state.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x = path[i].1[ind].pos.x + k1[ind*2]/2.0;
+      c.pos.y = path[i].1[ind].pos.y + k1[ind*2+1]/2.0;
+    });
+    let mut k2 = dy(time + 0.5*dt, &mut state, &settings);
+    k2.iter_mut().for_each(|k| {*k *= dt;});
+
+
+    state.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x = path[i].1[ind].pos.x + k2[ind*2]/2.0;
+      c.pos.y = path[i].1[ind].pos.y + k2[ind*2+1]/2.0;
+    });
+    let mut k3 = dy(time + 0.5*dt, &mut state, &settings);
+    k3.iter_mut().for_each(|k| {*k *= dt;});
+
+    state.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x = path[i].1[ind].pos.x + k3[ind*2];
+      c.pos.y = path[i].1[ind].pos.y + k3[ind*2+1];
+    });
+    let mut k4 = dy(time + dt, &mut state, &settings);
+    k4.iter_mut().for_each(|k| {*k *= dt;});
+
+    state.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x = path[i].1[ind].pos.x + (k1[ind*2] + 2.0*k2[ind*2] + 2.0*k3[ind*2] + k4[ind*2])/6.0;
+      c.pos.y = path[i].1[ind].pos.y + (k1[ind*2+1] + 2.0*k2[ind*2+1] + 2.0*k3[ind*2+1] + k4[ind*2+1])/6.0;
+    });
+    time += dt;
+    path.push((time, state.clone()));
+  }
+
+  path
+}
+
+pub fn predictor_corrector_adaptive(
+  grid: &Vec<cell::Cell>,
+  epsilon: f64,
+  dt_min: f64,
+  dt_max: f64,
+  dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
+  settings: &settings::Settings
+) -> Vec<(i32, f64, Vec<cell::Cell>)> {
+  let mut path: Vec<(i32, f64, Vec<cell::Cell>)> = vec![];
+  path.push((0, 0.0, grid.clone()));
+
+  let mut time = 0.0;
+  let mut dt = dt_max;
+  let mut last = false;
+
+  let mut considering = pca_rk4(time, dt, dy, &grid, settings);
+  let mut nflag = true;
+  time = considering.last().unwrap().0 + dt;
+
+  'out: loop {
+    let mut state1 = considering[considering.len() - 1].1.clone();
+    let mut state2 = considering[considering.len() - 2].1.clone();
+    let mut state3 = considering[considering.len() - 3].1.clone();
+    let mut state4 = considering[considering.len() - 4].1.clone();
+
+    let f1 = dy(considering[considering.len() - 1].0, &mut state1, settings);
+    let f2 = dy(considering[considering.len() - 2].0, &mut state2, settings);
+    let f3 = dy(considering[considering.len() - 3].0, &mut state3, settings);
+    let f4 = dy(considering[considering.len() - 4].0, &mut state4, settings);
+
+    let mut wp = state1.clone();
+    wp.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x += dt / 24.0 * (55.0*f1[ind*2] - 59.0*f2[ind*2] + 37.0*f3[ind*2] - 9.0*f4[ind*2]);
+      c.pos.y += dt / 24.0 * (55.0*f1[ind*2+1] - 59.0*f2[ind*2+1] + 37.0*f3[ind*2+1] - 9.0*f4[ind*2+1]);
+    });
+
+    let f = dy(time, &mut wp, settings);
+
+    let mut wc = state1.clone();
+    wc.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x += dt / 24.0 * (9.0 * f[ind*2] + 19.0*f1[ind*2] - 5.0*f2[ind*2] + f3[ind*2]);
+      c.pos.y += dt / 24.0 * (9.0 * f[ind*2+1] + 19.0*f1[ind*2+1] - 5.0*f2[ind*2+1] + f3[ind*2+1]);
+    });
+
+    let error = wc.clone();
+    let error: Vec<_> = error.iter().enumerate().map(|(ind, c)| {
+      (c.pos.x - wp[ind].pos.x).powi(2) + (c.pos.y - wp[ind].pos.y).powi(2)
+    }).collect();
+    let error = error.iter().sum::<f64>().sqrt();
+
+    if error <= epsilon {
+      if nflag {
+        path.push((considering.len() as i32 - 4, considering[considering.len() - 4].0, considering[considering.len() - 4].1.clone()));
+        path.push((considering.len() as i32 - 3, considering[considering.len() - 3].0, considering[considering.len() - 3].1.clone()));
+        path.push((considering.len() as i32 - 2, considering[considering.len() - 2].0, considering[considering.len() - 2].1.clone()));
+        path.push((considering.len() as i32 - 1, considering[considering.len() - 1].0, considering[considering.len() - 1].1.clone()));
+        nflag = false;
+      }
+      path.push((considering.len() as i32, time, wc.clone()));
+      considering.push((time, wc.clone()));
+
+      if last {
+        break 'out;
+      } else {
+        if error <= 0.1*epsilon || time + dt > settings.del_t {
+          let q = (epsilon / (2.0*error)).powf(0.25);
+          if q > 4.0 {
+            dt *= 4.0;
+          } else {
+            dt *= q;
+          }
+
+          if dt > dt_max {
+            dt = dt_max;
+          }
+
+          if time + 4.0*dt > settings.del_t {
+            dt = (settings.del_t - time) / 4.0;
+            last = true;
+          }
+
+          let nowconsidering = pca_rk4(time, dt, dy, &path[path.len() - 1].2, settings);
+          nflag = true;
+          for i in &nowconsidering {
+            considering.push(i.clone());
+          }
+        }
+      }
+    } else {
+      let q = (epsilon / (2.0*error)).powf(0.25);
+      if q < 0.1 {
+        dt *= 0.1;
+      } else {
+        dt *= q;
+      }
+
+      if dt < dt_min {
+        panic!("Minimum exceeded");
+      }
+
+      if nflag {
+        considering.remove(considering.len() - 1);
+        considering.remove(considering.len() - 1);
+        considering.remove(considering.len() - 1);
+      }
+      let nowconsidering = pca_rk4(time, dt, dy, &path[path.len() - 1].2, settings);
+      for i in &nowconsidering {
+        considering.push(i.clone());
+      }
+      nflag = true;
+    }
+    time += dt;
+  }
+
   path
 }
 
