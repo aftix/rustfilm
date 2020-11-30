@@ -23,7 +23,7 @@ pub fn derivs(t: f64, y: &mut Vec<cell::Cell>, settings: &settings::Settings) ->
           force += settings.spring_k * (dist - settings.spring_relax_far);
         }
 
-        if force.abs() < 1e-15 {
+        if force.abs() < 1e-7 {
           force = 0.0;
         }
 
@@ -144,6 +144,88 @@ pub fn rk(
     iter += 1;
   }
   path.push((iter, time, state.clone().to_vec()));
+  path
+}
+
+pub fn predictor_corrector(
+  grid: &Vec<cell::Cell>,
+  dt: f64,
+  dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
+  settings: &settings::Settings
+) -> Vec<(i32, f64, Vec<cell::Cell>)> {
+  let mut path: Vec<(i32, f64, Vec<cell::Cell>)> = vec![];
+  let mut state = grid.clone();
+  path.push((0, 0.0, state.clone().to_vec()));
+
+  let mut time = 0.0;
+
+  // Get first 3 states with standard Runge-Kutta Method (assumes dt*3 < settings.del_t)
+  for i in 0..3 {
+    state = path[i].2.clone();
+    let mut k1 = dy(time, &mut state, settings);
+    k1.iter_mut().for_each(|k| {*k *= dt;});
+
+    state.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x = path[i].2[ind].pos.x + 0.5*k1[ind*2];
+      c.pos.y = path[i].2[ind].pos.y + 0.5*k1[ind*2+1];
+    });
+    let mut k2 = dy(time + dt*0.5, &mut state, &settings);
+    k2.iter_mut().for_each(|k| {*k *= dt;});
+
+    state.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x = path[i].2[ind].pos.x + 0.5*k2[ind*2];
+      c.pos.y = path[i].2[ind].pos.y + 0.5*k2[ind*2];
+    });
+    let mut k3 = dy(time + dt*0.5, &mut state, &settings);
+    k3.iter_mut().for_each(|k| {*k *= dt;});
+
+    state.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x = path[i].2[ind].pos.x + k3[ind];
+      c.pos.y = path[i].2[ind].pos.y + k3[ind];
+    });
+    let mut k4 = dy(time + dt, &mut state, &settings);
+    k4.iter_mut().for_each(|k| {*k*=dt;});
+
+    state.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x = path[i].2[ind].pos.x + (k1[ind*2] + 2.0*k2[ind*2] + 2.0*k3[ind*2] + k4[ind*2]) / 6.0;
+      c.pos.y = path[i].2[ind].pos.y + (k1[ind*2+1] + 2.0*k2[ind*2+1] + 2.0*k3[ind*2+1] + k4[ind*2+1]) / 6.0;
+    });
+    time += dt;
+    path.push(((i+1) as i32, time, state.clone().to_vec()));
+  }
+
+  let mut iter = 5;
+
+
+  // Do Adams fourth-order predictor-corrector method
+  while time < settings.del_t {
+    time += dt;
+
+    let mut state1 = path[path.len() - 1].2.clone(); // w3
+    let mut state2 = path[path.len() - 2].2.clone(); // w2
+    let mut state3 = path[path.len() - 3].2.clone(); // w1
+    let mut state4 = path[path.len() - 4].2.clone(); // w0
+
+    let f1 = dy(path[path.len() - 1].1, &mut state1, &settings);
+    let f2 = dy(path[path.len() - 2].1, &mut state2, &settings);
+    let f3 = dy(path[path.len() - 3].1, &mut state3, &settings);
+    let f4 = dy(path[path.len() - 4].1, &mut state4, &settings);
+
+    // Predictor
+    state.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x = state1[ind].pos.x + dt * (55.0 * f1[ind*2] - 59.0 * f2[ind*2] + 37.0*f3[ind*2] - 9.0*f4[ind*2]) / 24.0;
+      c.pos.y = state1[ind].pos.y + dt * (55.0 * f1[ind*2+1] - 59.0 * f2[ind*2+1] + 37.0*f3[ind*2+1] - 9.0*f4[ind*2+1]) / 24.0;
+    });
+    // Corrector
+    let f = dy(time, &mut state, &settings);
+    state.iter_mut().enumerate().for_each(|(ind, c)| {
+      c.pos.x = state1[ind].pos.x + dt * (9.0 * f[ind*2] + 19.0*f1[ind*2] - 5.0*f2[ind*2] + f3[ind*2])/24.0;
+      c.pos.y = state1[ind].pos.y + dt * (9.0 * f[ind*2+1] + 19.0*f1[ind*2+1] - 5.0*f2[ind*2+1] + f3[ind*2+1])/24.0;
+    });
+    path.push((iter, time, state.clone().to_vec()));
+    iter += 1;
+  }
+
   path
 }
 
@@ -390,7 +472,7 @@ pub fn get_stress(grid: &mut Vec<cell::Cell>, t: f64, settings: &settings::Setti
         force = settings.spring_k * (dist - settings.spring_relax_far);
       }
 
-      if force.abs() < 1e-15 {
+      if force.abs() < 1e-7 {
         force = 0.0;
       }
 
@@ -416,7 +498,7 @@ pub fn get_stress(grid: &mut Vec<cell::Cell>, t: f64, settings: &settings::Setti
       let force = force_func(t, &mut cell_a, i, settings);
       let force_mag = force.norm();
 
-      if force_mag > 1e-15 {
+      if force_mag > 1e-7 {
         let ext_direc = cell::Pos{x: force.x / force_mag, y: force.y / force_mag};
         let ext_direc = cell::Pos{x: ext_direc.x * cell_a.radius, y: ext_direc.y * cell_a.radius};
         if let Some(stress) = cell_a.tensor_stress {

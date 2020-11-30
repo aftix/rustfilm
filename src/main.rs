@@ -196,7 +196,8 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
   let settings: settings::Settings = ron::from_str(&lines[0][..]).expect("deRONification failed");
   let grid: Vec<cell::Cell> = ron::from_str(&lines[1][..]).expect("deRONification failed");
 
-  let mut states = simulation::rk45(&grid, 0.01, 0.001, 0.1, simulation::derivs, &settings);
+  //let mut states = simulation::rk45(&grid, 0.01, 0.001, 0.1, simulation::derivs, &settings);
+  let mut states = simulation::predictor_corrector(&grid, 0.01, simulation::derivs, &settings);
 
   let max_stress = states.par_iter_mut()
     .map(|tuple| {
