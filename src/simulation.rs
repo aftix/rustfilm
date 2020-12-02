@@ -1,9 +1,14 @@
-use crate::{forces, cell, settings};
+use crate::{forces, cell, settings, quadtree::QuadTree};
 use num;
 use rayon::prelude::*;
 
 // Take in grid, return vector with x, y interlaced
 pub fn derivs(t: f64, y: &mut [cell::Cell], settings: &settings::Settings) -> Vec<f64> {
+  let mut tree = QuadTree::new(-1.0, 2.0, -1.0, 2.0);
+  for i in 0..y.len() {
+    tree.add(i, y[i].pos.x, y[i].pos.y);
+  }
+
   let lj_a = settings.repl_epsilon * num::pow(settings.repl_min, 12);
   let lj_b = settings.repl_epsilon * num::pow(settings.repl_min, 6);
 
@@ -11,43 +16,92 @@ pub fn derivs(t: f64, y: &mut [cell::Cell], settings: &settings::Settings) -> Ve
   grid.clone_from_slice(y);
 
   let forces: Vec<(f64, f64)> = y.iter_mut().enumerate().map(|(i, mut cell_a)| {
-    let mut net_force = grid.iter().enumerate().map(|(j, cell_b)| {
-        let mut net_force = (0.0, 0.0);
-        let a_to_b = cell_b.pos.sub(&cell_a.pos);
-        let dist = a_to_b.norm();
+    let mut net_force = cell_a.neighbor_close.iter().map(|ind| {
+      let mut net_force = (0.0, 0.0);
+      let a_to_b = grid[*ind].pos.sub(&cell_a.pos);
+      let dist = a_to_b.norm();
+      let mut force = settings.spring_k * (dist - settings.spring_relax_close);
+      if force.abs() < 1e-7 {
+        force = 0.0;
+      }
 
-        let mut force = 0.0;
-
-        if cell_a.neighbor_close.contains(&j) {
-          force += settings.spring_k * (dist - settings.spring_relax_close);
-        } else if cell_a.neighbor_far.contains(&j) {
-          force += settings.spring_k * (dist - settings.spring_relax_far);
-        }
-
-        if force.abs() < 1e-7 {
-          force = 0.0;
-        }
-
-        if dist < settings.repl_dist {
-          force += 12.0 * lj_a * dist.powi(-13) - lj_b * dist.powi(-7);
-        }
-
-        let unit_dist = cell::Pos{
-          x: a_to_b.x / dist,
-          y: a_to_b.y / dist
-        };
-        let check_nan = unit_dist.x.is_nan() || unit_dist.y.is_nan();
-        let check_inf = unit_dist.x.is_infinite() || unit_dist.y.is_infinite();
-        let check_nan = check_nan || force.is_nan();
-        let check_inf = check_inf || force.is_infinite();
-        if !check_nan && !check_inf {
-          net_force.0 += force * unit_dist.x;
-          net_force.1 += force * unit_dist.y;
-        }
-        return net_force;
+      let unit_dist = cell::Pos{
+        x: a_to_b.x / dist,
+        y: a_to_b.y / dist
+      };
+      let check_nan = unit_dist.x.is_nan() || unit_dist.y.is_nan();
+      let check_inf = unit_dist.x.is_infinite() || unit_dist.y.is_infinite();
+      let check_nan = check_nan || force.is_nan();
+      let check_inf = check_inf || force.is_infinite();
+      if !check_nan && !check_inf {
+        net_force.0 += force * unit_dist.x;
+        net_force.1 += force * unit_dist.y;
+      }
+      net_force
     }).fold((0.0, 0.0), |acc, (force_x, force_y)| {
       (acc.0 + force_x, acc.1 + force_y)
     });
+
+    let far_force = cell_a.neighbor_far.iter().map(|ind| {
+      let mut net_force = (0.0, 0.0);
+      let a_to_b = grid[*ind].pos.sub(&cell_a.pos);
+      let dist = a_to_b.norm();
+      let mut force = settings.spring_k * (dist - settings.spring_relax_far);
+      if force.abs() < 1e-7 {
+        force = 0.0;
+      }
+
+      let unit_dist = cell::Pos{
+        x: a_to_b.x / dist,
+        y: a_to_b.y / dist
+      };
+      let check_nan = unit_dist.x.is_nan() || unit_dist.y.is_nan();
+      let check_inf = unit_dist.x.is_infinite() || unit_dist.y.is_infinite();
+      let check_nan = check_nan || force.is_nan();
+      let check_inf = check_inf || force.is_infinite();
+      if !check_nan && !check_inf {
+        net_force.0 += force * unit_dist.x;
+        net_force.1 += force * unit_dist.y;
+      }
+      net_force
+    }).fold((0.0, 0.0), |acc, (force_x, force_y)| {
+      (acc.0 + force_x, acc.1 + force_y)
+    });
+
+    net_force.0 += far_force.0;
+    net_force.1 += far_force.1;
+
+    let close = tree.get_within(cell_a.pos.x, cell_a.pos.y, settings.repl_dist);
+    let repl_force = close.iter().map(|ind| {
+      let mut net_force = (0.0, 0.0);
+      let a_to_b = grid[*ind].pos.sub(&cell_a.pos);
+      let dist = a_to_b.norm();
+
+      let mut force = 12.0 * lj_a * dist.powi(-13) - lj_b * dist.powi(-7);
+      if force < 1e-7 {
+        force = 0.0;
+      }
+
+      let unit_dist = cell::Pos{
+        x: a_to_b.x / dist,
+        y: a_to_b.y / dist
+      };
+      let check_nan = unit_dist.x.is_nan() || unit_dist.y.is_nan();
+      let check_inf = unit_dist.x.is_infinite() || unit_dist.y.is_infinite();
+      let check_nan = check_nan || force.is_nan();
+      let check_inf = check_inf || force.is_infinite();
+      if !check_nan && !check_inf {
+        net_force.0 += force * unit_dist.x;
+        net_force.1 += force * unit_dist.y;
+      }
+
+      net_force
+    }).fold((0.0, 0.0), |acc, (force_x, force_y)| {
+      (acc.0 + force_x, acc.1 + force_y)
+    });
+
+    net_force.0 += repl_force.0;
+    net_force.1 += repl_force.1;
 
     if !cell_a.fixed {
       if cell_a.force != forces::ForceFunc::None {

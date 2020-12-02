@@ -242,7 +242,7 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
       }
     }).collect();
   let max_stress = stress.iter().max_by(|f1, f2| f1.0.partial_cmp(&f2.0).unwrap()).unwrap().0;
-  let max_stress = if max_stress <= 1e-5 { 1.0 } else { max_stress };
+  let max_stress = if max_stress <= 1e-10 { 1.0 } else { max_stress };
 
   let output = matches.value_of("output").unwrap_or("output.h264").to_string();
 

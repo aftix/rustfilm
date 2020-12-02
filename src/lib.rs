@@ -5,6 +5,7 @@ pub mod settings;
 pub mod generation;
 pub mod gfx;
 pub mod simulation;
+pub mod quadtree;
 
 use std::fmt;
 use std::error::Error;
