@@ -3,11 +3,12 @@ use num;
 use rayon::prelude::*;
 
 // Take in grid, return vector with x, y interlaced
-pub fn derivs(t: f64, y: &mut Vec<cell::Cell>, settings: &settings::Settings) -> Vec<f64> {
+pub fn derivs(t: f64, y: &mut [cell::Cell], settings: &settings::Settings) -> Vec<f64> {
   let lj_a = settings.repl_epsilon * num::pow(settings.repl_min, 12);
   let lj_b = settings.repl_epsilon * num::pow(settings.repl_min, 6);
 
-  let grid = y.clone();
+  let mut grid = vec![cell::Cell::new(0.0, 0.0, 0.0); y.len()];
+  grid.clone_from_slice(y);
 
   let forces: Vec<(f64, f64)> = y.iter_mut().enumerate().map(|(i, mut cell_a)| {
     let mut net_force = grid.iter().enumerate().map(|(j, cell_b)| {
@@ -73,13 +74,14 @@ pub fn derivs(t: f64, y: &mut Vec<cell::Cell>, settings: &settings::Settings) ->
 }
 
 pub fn euler(
-    grid: &Vec<cell::Cell>,
+    grid: &[cell::Cell],
     dt: f64,
-    dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
+    dy: fn(f64, &mut [cell::Cell], &settings::Settings) -> Vec<f64>,
     settings: &settings::Settings
 ) -> Vec<(i32, f64, Vec<cell::Cell>)> {
   let mut path: Vec<(i32, f64, Vec<cell::Cell>)> = vec![];
-  let mut state = grid.clone();
+  let mut state = vec![cell::Cell::new(0.0, 0.0, 0.0) ; grid.len()];
+  state.clone_from_slice(grid);
 
   let mut time = 0.0;
   let mut iter = 0;
@@ -102,13 +104,14 @@ pub fn euler(
 }
 
 pub fn rk(
-  grid: &Vec<cell::Cell>,
+  grid: &[cell::Cell],
   dt: f64,
-  dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
+  dy: fn(f64, &mut [cell::Cell], &settings::Settings) -> Vec<f64>,
   settings: &settings::Settings
 ) -> Vec<(i32, f64, Vec<cell::Cell>)> {
   let mut path: Vec<(i32, f64, Vec<cell::Cell>)> = vec![];
-  let mut state = grid.clone();
+  let mut state = vec![cell::Cell::new(0.0, 0.0, 0.0); grid.len()];
+  state.clone_from_slice(grid);
 
   let mut time = 0.0;
   let mut iter = 0;
@@ -148,13 +151,14 @@ pub fn rk(
 }
 
 pub fn predictor_corrector(
-  grid: &Vec<cell::Cell>,
+  grid: &[cell::Cell],
   dt: f64,
-  dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
+  dy: fn(f64, &mut [cell::Cell], &settings::Settings) -> Vec<f64>,
   settings: &settings::Settings
 ) -> Vec<(i32, f64, Vec<cell::Cell>)> {
   let mut path: Vec<(i32, f64, Vec<cell::Cell>)> = vec![];
-  let mut state = grid.clone();
+  let mut state = vec![cell::Cell::new(0.0, 0.0, 0.0); grid.len()];
+  state.clone_from_slice(grid);
   path.push((0, 0.0, state.clone()));
 
   let mut time = 0.0;
@@ -230,13 +234,14 @@ pub fn predictor_corrector(
 }
 
 pub fn rk_adaptive(
-  grid: &Vec<cell::Cell>,
+  grid: &[cell::Cell],
   tol: f64,
-  dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
+  dy: fn(f64, &mut [cell::Cell], &settings::Settings) -> Vec<f64>,
   settings: &settings::Settings
 ) -> Vec<(i32, f64, Vec<cell::Cell>)> {
   let mut path: Vec<(i32, f64, Vec<cell::Cell>)> = vec![];
-  let mut state = grid.clone();
+  let mut state = vec![cell::Cell::new(0.0, 0.0, 0.0) ; grid.len()];
+  state.clone_from_slice(grid);
 
   let mut time = 0.0;
   let mut iter = 0;
@@ -319,11 +324,11 @@ pub fn rk_adaptive(
 }
 
 pub fn rk45(
-  grid: &Vec<cell::Cell>,
+  grid: &[cell::Cell],
   epsilon: f64,
   dt_min: f64,
   dt_max: f64,
-  dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
+  dy: fn(f64, &mut [cell::Cell], &settings::Settings) -> Vec<f64>,
   settings: &settings::Settings
 ) -> Vec<(i32, f64, Vec<cell::Cell>)> {
   let mut path: Vec<(i32, f64, Vec<cell::Cell>)> = vec![];
@@ -332,7 +337,8 @@ pub fn rk45(
   let mut iter = 0;
   let mut last_iter = -1;
 
-  let mut state = grid.clone();
+  let mut state = vec![cell::Cell::new(0.0, 0.0, 0.0) ; grid.len()];
+  state.clone_from_slice(grid);
 
   let mut dt = 0.01;
 
@@ -435,13 +441,14 @@ pub fn rk45(
 fn pca_rk4(
   mut time: f64,
   dt: f64,
-  dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
-  grid: &Vec<cell::Cell>,
+  dy: fn(f64, &mut [cell::Cell], &settings::Settings) -> Vec<f64>,
+  grid: &[cell::Cell],
   settings: &settings::Settings
 ) -> Vec<(f64, Vec<cell::Cell>)> {
   let mut path: Vec<(f64, Vec<cell::Cell>)> = vec![];
-  path.push((time, grid.clone()));
-  let mut state = grid.clone();
+  let mut state = vec![cell::Cell::new(0.0, 0.0, 0.0); grid.len()];
+    state.clone_from_slice(grid);
+  path.push((time, state.clone()));
 
   for i in 0..3 {
     let mut k1 = dy(time, &mut state, &settings);
@@ -481,15 +488,17 @@ fn pca_rk4(
 }
 
 pub fn predictor_corrector_adaptive(
-  grid: &Vec<cell::Cell>,
+  grid: &[cell::Cell],
   epsilon: f64,
   dt_min: f64,
   dt_max: f64,
-  dy: fn(f64, &mut Vec<cell::Cell>, &settings::Settings) -> Vec<f64>,
+  dy: fn(f64, &mut [cell::Cell], &settings::Settings) -> Vec<f64>,
   settings: &settings::Settings
 ) -> Vec<(i32, f64, Vec<cell::Cell>)> {
   let mut path: Vec<(i32, f64, Vec<cell::Cell>)> = vec![];
-  path.push((0, 0.0, grid.clone()));
+  let mut state = vec![cell::Cell::new(0.0, 0.0, 0.0) ; grid.len()];
+  state.clone_from_slice(grid);
+  path.push((0, 0.0, state));
 
   let mut time = 0.0;
   let mut dt = dt_max;
