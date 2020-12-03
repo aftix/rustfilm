@@ -153,7 +153,7 @@ pub fn euler(
     time += dt;
     iter += 1;
   }
-  path.push((iter, time, state.clone()));
+  path.push((iter, time, state));
   path
 }
 
@@ -373,7 +373,7 @@ pub fn rk_adaptive(
     time += dt;
     iter += 1;
   }
-  path.push((iter, time, state.clone()));
+  path.push((iter, time, state));
   path
 }
 
@@ -487,7 +487,7 @@ pub fn rk45(
       dt = dt_min;
     }
   }
-  path.push((iter, time, state.clone()));
+  path.push((iter, time, state));
   path
 }
 
@@ -707,12 +707,11 @@ pub fn get_stress(grid: &mut Vec<cell::Cell>, t: f64, settings: &settings::Setti
 
       let rhat = cell::Pos{x: direc.x / dist, y: direc.y / dist};
       let force_directed = cell::Pos{x: rhat.x * force, y: rhat.y * force};
-      let new_stress = cell::Stress{
+
+      cell::Stress{
         a: force_directed.x * direc.x, b: force_directed.y * direc.x,
         c: force_directed.x * direc.y, d: force_directed.y * direc.y
-      };
-
-      new_stress
+      }
     }).fold(cell::Stress{a: 0.0, b: 0.0, c: 0.0, d: 0.0}, |acc, s| {
       cell::Stress{
         a: acc.a + s.a, b: acc.b + s.b,

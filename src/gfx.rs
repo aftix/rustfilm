@@ -6,7 +6,7 @@ use crate::cell;
 pub const SIZE: usize = 1024;
 pub const FPS: usize = 24;
 
-pub fn plot(grid: &Vec<cell::Cell>, name: &str, max_stress: f64) {
+pub fn plot(grid: &[cell::Cell], name: &str, max_stress: f64) {
   let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();
   drawing_area.fill(&WHITE).unwrap();
 
@@ -41,7 +41,7 @@ pub fn plot(grid: &Vec<cell::Cell>, name: &str, max_stress: f64) {
   });
 }
 
-pub fn plot_buf(grid: &Vec<cell::Cell>, max_stress: f64) -> Vec<u8> {
+pub fn plot_buf(grid: &[cell::Cell], max_stress: f64) -> Vec<u8> {
   let mut rgb: Vec<u8> = vec![];
   for _ in 0..SIZE*SIZE {
     rgb.push(0); //red
@@ -87,7 +87,7 @@ pub fn plot_buf(grid: &Vec<cell::Cell>, max_stress: f64) -> Vec<u8> {
   rgb
 }
 
-pub fn plot_avgstress(avgstress: &Vec<(f64, f64)>, name: &str) {
+pub fn plot_avgstress(avgstress: &[(f64, f64)], name: &str) {
   let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();
   drawing_area.fill(&WHITE).unwrap();
 
@@ -116,7 +116,7 @@ pub fn plot_avgstress(avgstress: &Vec<(f64, f64)>, name: &str) {
   )).unwrap();
 }
 
-pub fn plot_dist(avgdist: &Vec<(f64, f64)>, name: &str) {
+pub fn plot_dist(avgdist: &[(f64, f64)], name: &str) {
   let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();
   drawing_area.fill(&WHITE).unwrap();
 
@@ -145,7 +145,7 @@ pub fn plot_dist(avgdist: &Vec<(f64, f64)>, name: &str) {
   )).unwrap();
 }
 
-pub fn plot_xoff(avgdist: &Vec<(f64, f64)>, name: &str) {
+pub fn plot_xoff(avgdist: &[(f64, f64)], name: &str) {
   let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();
   drawing_area.fill(&WHITE).unwrap();
 
@@ -174,7 +174,7 @@ pub fn plot_xoff(avgdist: &Vec<(f64, f64)>, name: &str) {
   )).unwrap();
 }
 
-pub fn plot_yoff(avgdist: &Vec<(f64, f64)>, name: &str) {
+pub fn plot_yoff(avgdist: &[(f64, f64)], name: &str) {
   let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();
   drawing_area.fill(&WHITE).unwrap();
 
@@ -204,7 +204,7 @@ pub fn plot_yoff(avgdist: &Vec<(f64, f64)>, name: &str) {
 }
 
 // avg stress vs avg strain
-pub fn plot_stressstrain(strstr: &Vec<(f64, f64)>, name: &str) {
+pub fn plot_stressstrain(strstr: &[(f64, f64)], name: &str) {
   let drawing_area = BitMapBackend::new(name, (SIZE as u32, SIZE as u32)).into_drawing_area();
   drawing_area.fill(&WHITE).unwrap();
 
