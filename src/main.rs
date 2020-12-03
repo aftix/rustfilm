@@ -335,8 +335,23 @@ fn encode(states: &Vec<(i32, f64, Vec<cell::Cell>)>, output: &str, max_stress: f
   let mut output = File::create(output).expect("Unable to open output file");
   let mut timestamp = 0;
 
-  for (_, _, state) in states {
-    let frame = to_i420(&gfx::plot_buf(&state, max_stress));
+  let mut acc = 0.0;
+  let mut frames: Vec<Vec<cell::Cell>> = vec![];
+  let mut last_time = 0.0;
+  for (_, t, state) in states {
+    let dt = *t - last_time;
+    acc += dt;
+
+    if acc > 1.0/(gfx::FPS as f64) {
+      frames.push(state.clone());
+      acc -= 1.0 / (gfx::FPS as f64);
+    }
+
+    last_time = *t;
+  }
+
+  for frame in frames {
+    let frame = to_i420(&gfx::plot_buf(&frame, max_stress));
     pic.as_mut_slice(0).unwrap().copy_from_slice(&frame.0);
     pic.as_mut_slice(1).unwrap().copy_from_slice(&frame.1);
     pic.as_mut_slice(2).unwrap().copy_from_slice(&frame.2);
