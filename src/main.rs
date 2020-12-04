@@ -288,19 +288,19 @@ fn simulate(grid_name: &str, matches: &clap::ArgMatches) {
   }
 }
 
-fn to_i420(frame: &Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+fn to_i420(frame: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
   let mut y_plane: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE];
   let mut u_plane: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE/4];
   let mut v_plane: Vec<u8> = vec![0; gfx::SIZE*gfx::SIZE/4];
 
   for i in 0..gfx::SIZE*gfx::SIZE {
-    let r = frame[i*3] as f64;
-    let g = frame[i*3 + 1] as f64;
-    let b = frame[i*3 + 2] as f64;
+    let red = frame[i*3] as f64;
+    let green = frame[i*3 + 1] as f64;
+    let blue = frame[i*3 + 2] as f64;
 
-    let y = (0.257 * r) + (0.504 * g) + (0.098 * b) + 16.0;
-    let u = -(0.148 * r) - (0.291*g) + (0.439 * b) + 128.0;
-    let v = (0.439 * r) - (0.368 * g) - (0.071 * b) + 128.0;
+    let y = (0.257 * red) + (0.504 * green) + (0.098 * blue) + 16.0;
+    let u = -(0.148 * red) - (0.291*green) + (0.439 * blue) + 128.0;
+    let v = (0.439 * red) - (0.368 * green) - (0.071 * blue) + 128.0;
 
     let y = if y < 0.0 { 0.0 } else if y > 255.0 { 255.0 } else { y };
     let u = if u < 0.0 { 0.0 } else if u > 255.0 { 255.0 } else { u };
@@ -321,7 +321,7 @@ fn to_i420(frame: &Vec<u8>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
   (y_plane, u_plane, v_plane)
 }
 
-fn encode(states: &Vec<(i32, f64, Vec<cell::Cell>)>, output: &str, max_stress: f64) {
+fn encode(states: &[(i32, f64, Vec<cell::Cell>)], output: &str, max_stress: f64) {
   let mut par = x264::Param::new();
   par = par.set_dimension(gfx::SIZE, gfx::SIZE);
   par = par.param_parse("repeat_headers", "1").unwrap();

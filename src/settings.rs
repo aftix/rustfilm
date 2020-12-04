@@ -166,3 +166,9 @@ impl Settings {
     None
   }
 }
+
+impl Default for Settings {
+  fn default() -> Settings {
+    Settings::new()
+  }
+}

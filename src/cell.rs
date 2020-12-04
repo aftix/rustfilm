@@ -72,7 +72,7 @@ impl ForceLink {
 
 impl Pos {
   pub fn norm(&self) -> f64 {
-    return (num::pow(self.x, 2) + num::pow(self.y, 2)).sqrt();
+    (num::pow(self.x, 2) + num::pow(self.y, 2)).sqrt()
   }
 
   pub fn sub(&self, rhs: &Pos) -> Pos {

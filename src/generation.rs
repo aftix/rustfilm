@@ -2,14 +2,17 @@ use crate::settings;
 use crate::cell;
 use crate::update;
 use float_cmp::approx_eq;
+use std::f64;
 
 use super::RustfilmError;
+
+pub type Hook = fn(usize, usize, &mut cell::Cell, &settings::Settings) -> ();
 
 pub fn generate_offsetgrid(
     settings: &mut settings::Settings,
     size: f64,
-    major_hook: Option<fn(usize, usize, &mut cell::Cell, &settings::Settings) -> ()>,
-    minor_hook: Option<fn(usize, usize, &mut cell::Cell, &settings::Settings) -> ()>
+    major_hook: Option<Hook>,
+    minor_hook: Option<Hook>
   ) -> Result<Vec<cell::Cell>, RustfilmError> {
     let mut grid: Vec<cell::Cell> = vec![];
 
@@ -54,7 +57,7 @@ pub fn generate_offsetgrid(
     }
 
     let big_space = iter_space;
-    let small_space = (iter_space / 2.0) * 1.4142135623731; //sqrt2
+    let small_space = (iter_space / 2.0) * f64::consts::SQRT_2;
 
     settings.spring_relax_close = small_space;
     settings.spring_relax_far = big_space;

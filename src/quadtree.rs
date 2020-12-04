@@ -91,48 +91,39 @@ impl<T: Clone> QuadTree<T> {
           )));
 
           // Put current data to children
-          if self.x < xmid {
-            if self.y < ymid {
-              if let Some(q3) = &mut self.q3 { // always true
-                q3.data = Some(data.clone());
-              }
-            } else {
-              if let Some(q2) = &mut self.q2 {
-                q2.data = Some(data.clone());
-              }
+          if x > xmid && y > ymid {
+            if let Some(q1) = &mut self.q1 {
+              q1.data = Some(data.clone());
             }
-          } else {
-            if self.y < ymid {
-              if let Some(q4) = &mut self.q4 {
-                q4.data = Some(data.clone());
-              }
-            } else {
-              if let Some(q1) = &mut self.q1 {
-                q1.data = Some(data.clone());
-              }
+          } else if x < xmid && y > ymid {
+            if let Some(q2) = &mut self.q2 {
+              q2.data = Some(data.clone());
+            }
+          } else if x < xmid && y < ymid {
+            if let Some(q3) = &mut self.q3 {
+              q3.data = Some(data.clone());
+            }
+          } else if x > xmid && y < ymid {
+            if let Some(q4) = &mut self.q4 {
+              q4.data = Some(data.clone());
             }
           }
 
-          // Push item to correct place
-          if x < xmid {
-            if y < ymid {
-              if let Some(q3) = &mut self.q3 {
-                q3.add(item, x, y);
-              }
-            } else {
-              if let Some(q2) = &mut self.q2 {
-                q2.add(item, x, y);
-              }
+          if x > xmid && y > ymid {
+            if let Some(q1) = &mut self.q1 {
+              q1.add(item, x, y);
             }
-          } else {
-            if y < ymid {
-              if let Some(q4) = &mut self.q4 {
-                q4.add(item, x, y);
-              }
-            } else {
-              if let Some(q1) = &mut self.q1 {
-                q1.add(item, x, y);
-              }
+          } else if x < xmid && y > ymid {
+            if let Some(q2) = &mut self.q2 {
+              q2.add(item, x, y);
+            }
+          } else if x < xmid && y < ymid {
+            if let Some(q3) = &mut self.q3 {
+              q3.add(item, x, y);
+            }
+          } else if x > xmid && y < ymid {
+            if let Some(q4) = &mut self.q4 {
+              q4.add(item, x, y);
             }
           }
         }
@@ -141,25 +132,21 @@ impl<T: Clone> QuadTree<T> {
       let xmid = 0.5 * (self.xmax + self.xmin);
       let ymid = 0.5 * (self.ymax + self.ymin);
 
-      if x < xmid {
-        if y < ymid {
-          if let Some(q3) = &mut self.q3 {
-            q3.add(item, x, y);
-          }
-        } else {
-          if let Some(q2) = &mut self.q2 {
-            q2.add(item, x, y);
-          }
+      if x > xmid && y > ymid {
+        if let Some(q1) = &mut self.q1 {
+          q1.add(item, x, y);
         }
-      } else {
-        if y < ymid {
-          if let Some(q4) = &mut self.q4 {
-            q4.add(item, x, y);
-          }
-        } else {
-          if let Some(q1) = &mut self.q1 {
-            q1.add(item, x, y);
-          }
+      } else if x < xmid && y > ymid {
+        if let Some(q2) = &mut self.q2 {
+          q2.add(item, x, y);
+        }
+      } else if x < xmid && y < ymid {
+        if let Some(q3) = &mut self.q3 {
+          q3.add(item, x, y);
+        }
+      } else if x > xmid && y < ymid {
+        if let Some(q4) = &mut self.q4 {
+          q4.add(item, x, y);
         }
       }
     }

@@ -1,12 +1,11 @@
 use crate::{forces, cell, settings, quadtree::QuadTree};
-use num;
 use rayon::prelude::*;
 
 // Take in grid, return vector with x, y interlaced
 pub fn derivs(t: f64, y: &mut [cell::Cell], settings: &settings::Settings) -> Vec<f64> {
   let mut tree = QuadTree::new(-1.0, 2.0, -1.0, 2.0);
-  for i in 0..y.len() {
-    tree.add(i, y[i].pos.x, y[i].pos.y);
+  for (i, y) in y.iter().enumerate() {
+    tree.add(i, y.pos.x, y.pos.y);
   }
 
   let lj_a = settings.repl_epsilon * num::pow(settings.repl_min, 12);
@@ -200,7 +199,7 @@ pub fn rk(
     time += dt;
     iter += 1;
   }
-  path.push((iter, time, state.clone()));
+  path.push((iter, time, state));
   path
 }
 
@@ -592,6 +591,7 @@ pub fn predictor_corrector_adaptive(
       (c.pos.x - wp[ind].pos.x).powi(2) + (c.pos.y - wp[ind].pos.y).powi(2)
     }).collect();
     let error = error.iter().sum::<f64>().sqrt();
+    let error = error * 19.0 / (270.0 * dt);
 
     if error <= epsilon {
       if nflag {
@@ -606,29 +606,27 @@ pub fn predictor_corrector_adaptive(
 
       if last {
         break 'out;
-      } else {
-        if error <= 0.1*epsilon || time + dt > settings.del_t {
-          let q = (epsilon / (2.0*error)).powf(0.25);
-          if q > 4.0 {
-            dt *= 4.0;
-          } else {
-            dt *= q;
-          }
+      } else if error <= 0.1*epsilon || time + dt > settings.del_t {
+        let q = (epsilon / (2.0*error)).powf(0.25);
+        if q > 4.0 {
+          dt *= 4.0;
+        } else {
+          dt *= q;
+        }
 
-          if dt > dt_max {
-            dt = dt_max;
-          }
+        if dt > dt_max {
+          dt = dt_max;
+        }
 
-          if time + 4.0*dt > settings.del_t {
-            dt = (settings.del_t - time) / 4.0;
-            last = true;
-          }
+        if time + 4.0*dt > settings.del_t {
+          dt = (settings.del_t - time) / 4.0;
+          last = true;
+        }
 
-          let nowconsidering = pca_rk4(time, dt, dy, &path[path.len() - 1].2, settings);
-          nflag = true;
-          for i in &nowconsidering {
-            considering.push(i.clone());
-          }
+        let nowconsidering = pca_rk4(time, dt, dy, &path[path.len() - 1].2, settings);
+        nflag = true;
+        for i in &nowconsidering {
+          considering.push(i.clone());
         }
       }
     } else {

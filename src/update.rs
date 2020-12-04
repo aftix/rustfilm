@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::{forces, cell, settings};
+use crate::{forces, cell, settings, generation};
 
 #[derive(Serialize, Deserialize,Debug,PartialEq,Eq,Clone,Copy)]
 pub enum UpdateFunc {
@@ -11,9 +11,9 @@ pub enum UpdateFunc {
 
 pub fn update(cell: &mut cell::Cell) {
   match cell.update {
-    UpdateFunc::None => return,
-    UpdateFunc::Constrained => return,
-    UpdateFunc::Sine => return,
+    UpdateFunc::None => {},
+    UpdateFunc::Constrained => {},
+    UpdateFunc::Sine => {},
     UpdateFunc::Pluck => pluck(cell),
   }
 }
@@ -28,7 +28,7 @@ pub fn func_enum(name: &str) -> UpdateFunc {
   }
 }
 
-pub fn enum_major(e: &UpdateFunc) -> Option<fn(usize, usize, &mut cell::Cell, &settings::Settings) -> ()> {
+pub fn enum_major(e: &UpdateFunc) -> Option<generation::Hook> {
   match e {
     UpdateFunc::None => None,
     UpdateFunc::Constrained => Some(constrained_major),
@@ -37,7 +37,7 @@ pub fn enum_major(e: &UpdateFunc) -> Option<fn(usize, usize, &mut cell::Cell, &s
   }
 }
 
-pub fn enum_minor(e: &UpdateFunc) -> Option<fn(usize, usize, &mut cell::Cell, &settings::Settings) -> ()> {
+pub fn enum_minor(e: &UpdateFunc) -> Option<generation::Hook> {
   match e {
     UpdateFunc::None => None,
     UpdateFunc::Constrained => None,
